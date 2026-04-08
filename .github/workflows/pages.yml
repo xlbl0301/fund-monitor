@@ -23,12 +23,80 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Fetch fund data and build HTML
+        run: |
+          python3 << 'PYEOF'
+          import urllib.request, ssl, json, re
+
+          ctx = ssl.create_default_context()
+          ctx.check_hostname = False
+          ctx.verify_mode = ssl.CERT_NONE
+
+          FUNDS = [
+              {"code":"008702","name":"华夏黄金ETF联接C","cost":42312.00,"group":"黄金 & 贵金属","color":"#ff4d4f"},
+              {"code":"011036","name":"嘉实中证稀土产业ETF联接C","cost":44750.41,"group":"稀土","color":"#ff7a45"},
+              {"code":"014978","name":"华安纳斯达克100ETF联接(QDII)C","cost":11643.25,"group":"纳斯达克100","color":"#ffc53d"},
+              {"code":"018044","name":"天弘纳斯达克100指数发起(QDII)C","cost":21089.18,"group":"纳斯达克100","color":"#73d13d"},
+              {"code":"008971","name":"大成纳斯达克100ETF联接(QDII)C","cost":1624.49,"group":"纳斯达克100","color":"#36cfc9"},
+              {"code":"019525","name":"华泰柏瑞纳斯达克100ETF发起式联接(QDII)C","cost":3538.59,"group":"纳斯达克100","color":"#40a9ff"},
+              {"code":"004433","name":"南方有色金属ETF联接C","cost":48064.98,"group":"黄金 & 贵金属","color":"#9254de"},
+              {"code":"016453","name":"南方纳斯达克100指数发起(QDII)C","cost":1960.41,"group":"纳斯达克100","color":"#f759ab"},
+              {"code":"025857","name":"华夏中证电网设备主题ETF发起式联接C","cost":2952.06,"group":"电网设备","color":"#bfbfbf"},
+              {"code":"016533","name":"嘉实纳斯达克100ETF发起联接(QDII)C","cost":280.96,"group":"纳斯达克100","color":"#d4b106"},
+          ]
+
+          fund_data = {}
+          for f in FUNDS:
+              code = f["code"]
+              url = 'https://fundgz.1234567.com.cn/js/' + code + '.js?rt=1&callback=jsonpgz'
+              try:
+                  req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                  resp = urllib.request.urlopen(req, timeout=15, context=ctx)
+                  content = resp.read().decode('utf-8')
+                  m = re.search(r'jsonpgz\((.+)\)', content)
+                  if m:
+                      d = json.loads(m.group(1))
+                      fund_data[code] = {'gsz': d.get('gsz'), 'dwjz': d.get('dwjz')}
+                      print(f'OK {code}: gsz={d.get("gsz")} dwjz={d.get("dwjz")}')
+                  else:
+                      print(f'PARSE FAIL {code}')
+              except Exception as e:
+                  print(f'FAIL {code}: {e}')
+
+          # 读取 HTML 模板
+          with open('fund_live.html', 'r', encoding='utf-8') as f:
+              html = f.read()
+
+          # 替换占位符
+          for f in FUNDS:
+              code = f['code']
+              gsz = fund_data.get(code, {}).get('gsz', '0')
+              dwjz = fund_data.get(code, {}).get('dwjz', '0')
+              html = html.replace('{{' + code + '_gsz}}', gsz)
+              html = html.replace('{{' + code + '_dwjz}}', dwjz)
+
+          # 保存为 index.html
+          with open('index.html', 'w', encoding='utf-8') as f:
+              f.write(html)
+
+          print('index.html 构建完成')
+          print('数据时间:', json.dumps(fund_data, ensure_ascii=False))
+          PYEOF
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: '.'
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

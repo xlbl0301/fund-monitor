@@ -177,7 +177,7 @@ const FUNDS = [
 ];
 
 // ══════════════════════════════════════════
-//  API 拉取
+//  API 拉取（JSONP 方式，天然跨域）
 // ══════════════════════════════════════════
 let fetched = {};
 let refreshTimer = null;
@@ -194,16 +194,34 @@ const GROUP_LABELS = {
 function fmt(v, dec=2) { return Number(v).toFixed(dec); }
 function fmtY(v) { return '¥' + Number(v).toLocaleString('zh-CN',{minimumFractionDigits:2,maxFractionDigits:2}); }
 
-function fetchOne(code) {
+function fetchOneJSONP(code) {
   return new Promise((resolve) => {
-    const url = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${Date.now()}`;
-    fetch(url)
-      .then(r => r.text())
-      .then(t => {
-        const m = t.match(/\((\{.*?\})\)/);
-        resolve(m ? JSON.parse(m[1]) : null);
-      })
-      .catch(() => resolve(null));
+    const cbName = 'fundcb_' + code + '_' + Date.now();
+    window[cbName] = function(data) {
+      delete window[cbName];
+      const el = document.getElementById(cbName);
+      if (el) el.remove();
+      resolve(data);
+    };
+    const script = document.createElement('script');
+    script.id = cbName;
+    script.src = 'https://fundgz.1234567.com.cn/js/' + code + '.js?rt=' + Date.now() + '&callback=' + cbName;
+    script.onerror = function() {
+      delete window[cbName];
+      const el = document.getElementById(cbName);
+      if (el) el.remove();
+      resolve(null);
+    };
+    document.head.appendChild(script);
+    // 超时 8 秒
+    setTimeout(() => {
+      if (window[cbName]) {
+        delete window[cbName];
+        const el = document.getElementById(cbName);
+        if (el) el.remove();
+        resolve(null);
+      }
+    }, 8000);
   });
 }
 
@@ -214,7 +232,10 @@ async function fetchAll() {
   document.getElementById('loading').classList.remove('hidden');
 
   fetched = {};
-  await Promise.all(FUNDS.map(f => fetchOne(f.code).then(d => { if(d) fetched[f.code] = d; })));
+  const results = await Promise.all(FUNDS.map(async f => {
+    const d = await fetchOneJSONP(f.code);
+    if (d) fetched[f.code] = d;
+  }));
 
   render();
   resetCountdown();

@@ -213,9 +213,10 @@ if (checkInitData()) {
     fetched[f.code] = { gsz: f.gsz, dwjz: f.dwjz };
   });
   render();
-  // 有预填数据时不需要自动刷新定时器（避免 fetchAll() 清空已渲染内容）
+  // 有预填数据：启动自动刷新，但用预填数据作为基准
+  resetCountdown();
 } else {
-  resetCountdown(); // 无预填数据时才启用自动刷新
+  resetCountdown(); // 无预填数据：启动自动刷新
 }
 
 function fmt(v, dec=2) { return Number(v).toFixed(dec); }
@@ -273,15 +274,21 @@ function unlockUI() {
 async function fetchAll() {
   // 防止重复点击
   const btn = document.getElementById('refreshBtn');
-  if (btn.disabled) return;
-  btn.disabled = true;
-  btn.textContent = '⏳ 刷新中…';
-  document.getElementById('loading').classList.remove('hidden');
-  document.getElementById('errorMsg').style.display = 'none';
+  if (btn && btn.disabled) return;
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 刷新中…'; }
+  const loading = document.getElementById('loading');
+  if (loading) loading.classList.remove('hidden');
+  const errEl = document.getElementById('errorMsg');
+  if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+
+  // 保留已渲染数据作为后备（防止全部 API 失败时清空已有内容）
+  const fallback = Object.assign({}, fetched);
 
   // 20 秒安全超时：若超时不归则强制解锁 UI（JSONP 请求可能静默挂起）
   const safetyTimer = setTimeout(() => {
-    console.warn('[fetchAll] Safety timeout triggered — unlocking UI');
+    console.warn('[fetchAll] Safety timeout — restoring fallback data');
+    fetched = fallback;
+    render();
     unlockUI();
   }, 20000);
 
@@ -289,18 +296,21 @@ async function fetchAll() {
     fetched = {};
     let failed = [];
     for (const f of FUNDS) {
-      const d = await fetchOneJSONP(f.code);
-      if (d) { fetched[f.code] = d; }
-      else { failed.push(f.code); }
+      try {
+        const d = await fetchOneJSONP(f.code);
+        if (d) { fetched[f.code] = d; }
+        else { failed.push(f.code); }
+      } catch(_) { failed.push(f.code); }
     }
     clearTimeout(safetyTimer);
 
-    const errEl = document.getElementById('errorMsg');
-    if (failed.length > 0) {
-      errEl.textContent = '以下基金刷新失败（可再次点击刷新）：' + failed.join(', ');
-      errEl.style.display = 'block';
-    } else {
-      errEl.style.display = 'none';
+    if (errEl) {
+      if (failed.length > 0) {
+        errEl.textContent = '以下基金刷新失败，已保留上次数据：' + failed.join(', ');
+        errEl.style.display = 'block';
+      } else {
+        errEl.style.display = 'none';
+      }
     }
 
     render();
@@ -308,10 +318,12 @@ async function fetchAll() {
   } catch(e) {
     clearTimeout(safetyTimer);
     console.error('[fetchAll] Error:', e);
-    document.getElementById('errorMsg').textContent = '刷新出错：' + e.message + '（可再次点击刷新）';
-    document.getElementById('errorMsg').style.display = 'block';
-    // 若已有预填数据，保留已渲染内容
-    if (!hasInitData) render();
+    fetched = fallback; // 出错时回退，不清空
+    if (errEl) {
+      errEl.textContent = '刷新出错（已保留上次数据）：' + e.message;
+      errEl.style.display = 'block';
+    }
+    render();
   } finally {
     unlockUI();
   }
@@ -460,8 +472,15 @@ function resetCountdown() {
   }, 1000);
 }
 
-// 首次：如果没有预填数据则主动拉取
-if (!hasInitData) fetchAll();
+// 首次：如果没有预填数据则主动拉取（同时立即启动倒计时显示）
+if (!hasInitData) {
+  // 立即显示倒计时（fetchAll 完成前先给用户反馈）
+  const m0 = String(Math.floor(300 / 60)).padStart(2, '0');
+  const s0 = String(300 % 60).padStart(2, '0');
+  const cdEl = document.getElementById('countdown');
+  if (cdEl) cdEl.textContent = m0 + ':' + s0 + ' 后自动刷新';
+  fetchAll();
+}
 </script>
 </body>
 </html>

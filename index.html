@@ -175,15 +175,15 @@ tr:hover td{background:rgba(255,255,255,.03)}
 //  若浏览器需要刷新，点击「刷新数据」按钮
 // ══════════════════════════════════════════
 const FUNDS = [
-  {code:"008702",name:"华夏黄金ETF联接C",   cost:43592.28, gsz:"2.2500", dwjz:"2.2915", group:"黄金 & 贵金属",color:"#ff4d4f"},
-  {code:"011036",name:"嘉实中证稀土产业ETF联接C",cost:46592.70, gsz:"1.3150", dwjz:"1.3227", group:"稀土",     color:"#ff7a45"},
+  {code:"008702",name:"华夏黄金ETF联接C",   cost:43592.28, gsz:"2.2528", dwjz:"2.2915", group:"黄金 & 贵金属",color:"#ff4d4f"},
+  {code:"011036",name:"嘉实中证稀土产业ETF联接C",cost:46592.70, gsz:"1.3367", dwjz:"1.3227", group:"稀土",     color:"#ff7a45"},
   {code:"014978",name:"华安纳斯达克100ETF联接(QDII)C", cost:11705.60, gsz:"6.9262", dwjz:"6.7408", group:"纳斯达克100",color:"#ffc53d"},
   {code:"018044",name:"天弘纳斯达克100指数发起(QDII)C", cost:21196.47, gsz:"1.7457", dwjz:"1.6990", group:"纳斯达克100",color:"#73d13d"},
   {code:"008971",name:"大成纳斯达克100ETF联接(QDII)C",  cost:1633.20,  gsz:"5.4292", dwjz:"5.2839", group:"纳斯达克100",color:"#36cfc9"},
   {code:"019525",name:"华泰柏瑞纳斯达克100ETF发起式联接(QDII)C",cost:3556.16, gsz:"1.4143", dwjz:"1.3764", group:"纳斯达克100",color:"#40a9ff"},
-  {code:"004433",name:"南方有色金属ETF联接C",           cost:50817.85, gsz:"1.9763", dwjz:"2.0066", group:"黄金 & 贵金属",color:"#9254de"},
+  {code:"004433",name:"南方有色金属ETF联接C",           cost:50817.85, gsz:"2.0088", dwjz:"2.0066", group:"黄金 & 贵金属",color:"#9254de"},
   {code:"016453",name:"南方纳斯达克100指数发起(QDII)C",  cost:1970.27,  gsz:"1.9726", dwjz:"1.9198", group:"纳斯达克100",color:"#f759ab"},
-  {code:"025857",name:"华夏中证电网设备主题ETF发起式联接C",cost:3080.29,  gsz:"1.2844", dwjz:"1.3092", group:"电网设备",  color:"#bfbfbf"},
+  {code:"025857",name:"华夏中证电网设备主题ETF发起式联接C",cost:3080.29,  gsz:"1.3024", dwjz:"1.3092", group:"电网设备",  color:"#bfbfbf"},
   {code:"016533",name:"嘉实纳斯达克100ETF发起联接(QDII)C",cost:282.40,   gsz:"1.8465", dwjz:"1.7971", group:"纳斯达克100",color:"#d4b106"},
 ];
 
@@ -213,9 +213,10 @@ if (checkInitData()) {
     fetched[f.code] = { gsz: f.gsz, dwjz: f.dwjz };
   });
   render();
-  // 有预填数据时不需要自动刷新定时器（避免 fetchAll() 清空已渲染内容）
+  // 有预填数据：启动自动刷新，但用预填数据作为基准
+  resetCountdown();
 } else {
-  resetCountdown(); // 无预填数据时才启用自动刷新
+  resetCountdown(); // 无预填数据：启动自动刷新
 }
 
 function fmt(v, dec=2) { return Number(v).toFixed(dec); }
@@ -273,15 +274,21 @@ function unlockUI() {
 async function fetchAll() {
   // 防止重复点击
   const btn = document.getElementById('refreshBtn');
-  if (btn.disabled) return;
-  btn.disabled = true;
-  btn.textContent = '⏳ 刷新中…';
-  document.getElementById('loading').classList.remove('hidden');
-  document.getElementById('errorMsg').style.display = 'none';
+  if (btn && btn.disabled) return;
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 刷新中…'; }
+  const loading = document.getElementById('loading');
+  if (loading) loading.classList.remove('hidden');
+  const errEl = document.getElementById('errorMsg');
+  if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+
+  // 保留已渲染数据作为后备（防止全部 API 失败时清空已有内容）
+  const fallback = Object.assign({}, fetched);
 
   // 20 秒安全超时：若超时不归则强制解锁 UI（JSONP 请求可能静默挂起）
   const safetyTimer = setTimeout(() => {
-    console.warn('[fetchAll] Safety timeout triggered — unlocking UI');
+    console.warn('[fetchAll] Safety timeout — restoring fallback data');
+    fetched = fallback;
+    render();
     unlockUI();
   }, 20000);
 
@@ -289,18 +296,21 @@ async function fetchAll() {
     fetched = {};
     let failed = [];
     for (const f of FUNDS) {
-      const d = await fetchOneJSONP(f.code);
-      if (d) { fetched[f.code] = d; }
-      else { failed.push(f.code); }
+      try {
+        const d = await fetchOneJSONP(f.code);
+        if (d) { fetched[f.code] = d; }
+        else { failed.push(f.code); }
+      } catch(_) { failed.push(f.code); }
     }
     clearTimeout(safetyTimer);
 
-    const errEl = document.getElementById('errorMsg');
-    if (failed.length > 0) {
-      errEl.textContent = '以下基金刷新失败（可再次点击刷新）：' + failed.join(', ');
-      errEl.style.display = 'block';
-    } else {
-      errEl.style.display = 'none';
+    if (errEl) {
+      if (failed.length > 0) {
+        errEl.textContent = '以下基金刷新失败，已保留上次数据：' + failed.join(', ');
+        errEl.style.display = 'block';
+      } else {
+        errEl.style.display = 'none';
+      }
     }
 
     render();
@@ -308,10 +318,12 @@ async function fetchAll() {
   } catch(e) {
     clearTimeout(safetyTimer);
     console.error('[fetchAll] Error:', e);
-    document.getElementById('errorMsg').textContent = '刷新出错：' + e.message + '（可再次点击刷新）';
-    document.getElementById('errorMsg').style.display = 'block';
-    // 若已有预填数据，保留已渲染内容
-    if (!hasInitData) render();
+    fetched = fallback; // 出错时回退，不清空
+    if (errEl) {
+      errEl.textContent = '刷新出错（已保留上次数据）：' + e.message;
+      errEl.style.display = 'block';
+    }
+    render();
   } finally {
     unlockUI();
   }
@@ -460,8 +472,15 @@ function resetCountdown() {
   }, 1000);
 }
 
-// 首次：如果没有预填数据则主动拉取
-if (!hasInitData) fetchAll();
+// 首次：如果没有预填数据则主动拉取（同时立即启动倒计时显示）
+if (!hasInitData) {
+  // 立即显示倒计时（fetchAll 完成前先给用户反馈）
+  const m0 = String(Math.floor(300 / 60)).padStart(2, '0');
+  const s0 = String(300 % 60).padStart(2, '0');
+  const cdEl = document.getElementById('countdown');
+  if (cdEl) cdEl.textContent = m0 + ':' + s0 + ' 后自动刷新';
+  fetchAll();
+}
 </script>
 </body>
 </html>

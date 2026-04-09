@@ -271,8 +271,12 @@ function unlockUI() {
   // 若 fetchAll 未完成，render() 和 resetCountdown() 留待 JSONP 回调自然处理
 }
 
+// 并发获取所有基金数据（Promise.allSettled 同时发出，不再串行等待）
+function fetchAllFunds() {
+  return Promise.allSettled(FUNDS.map(f => fetchOneJSONP(f.code)));
+}
+
 async function fetchAll() {
-  // 防止重复点击
   const btn = document.getElementById('refreshBtn');
   if (btn && btn.disabled) return;
   if (btn) { btn.disabled = true; btn.textContent = '⏳ 刷新中…'; }
@@ -281,57 +285,50 @@ async function fetchAll() {
   const errEl = document.getElementById('errorMsg');
   if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
 
-  // 保留已渲染数据作为后备（防止全部 API 失败时清空已有内容）
   const fallback = Object.assign({}, fetched);
+  const t0 = Date.now();
 
-  // 20 秒安全超时：若超时不归则强制解锁 UI（JSONP 请求可能静默挂起）
-  const safetyTimer = setTimeout(() => {
-    console.warn('[fetchAll] Safety timeout — restoring fallback data');
-    fetched = fallback;
-    render();
-    unlockUI();
-  }, 20000);
-
+  // 并发所有请求，8 秒全局超时
+  let settled;
   try {
-    // 从旧数据开始（不清空！API返回null的基金保留原值）
-    const newFetched = Object.assign({}, fetched);
-    let failed = [];
-    for (const f of FUNDS) {
-      try {
-        const d = await fetchOneJSONP(f.code);
-        if (d) { newFetched[f.code] = d; }
-        else if (!fetched[f.code]) { failed.push(f.code); }
-      } catch(_) {
-        if (!fetched[f.code]) { failed.push(f.code); }
-      }
-    }
-    fetched = newFetched;
-    clearTimeout(safetyTimer);
-
-    if (errEl) {
-      if (failed.length > 0) {
-        errEl.textContent = '以下基金暂无数据（保留上次估值）：' + failed.join(', ');
-        errEl.style.display = 'block';
-      } else {
-        errEl.style.display = 'none';
-      }
-    }
-
-    console.log('[fetchAll] Refreshed: fetched entries=' + Object.keys(fetched).length);
-    render();
-    resetCountdown();
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('TIMEOUT')), 8000)
+    );
+    settled = await Promise.race([fetchAllFunds(), timeoutPromise]);
+    console.log('[fetchAll] All settled in ' + (Date.now() - t0) + 'ms');
   } catch(e) {
-    clearTimeout(safetyTimer);
-    console.error('[fetchAll] Error:', e);
-    fetched = fallback; // 出错时回退，不清空
-    if (errEl) {
-      errEl.textContent = '刷新出错（已保留上次数据）：' + e.message;
-      errEl.style.display = 'block';
-    }
-    render();
-  } finally {
-    unlockUI();
+    console.warn('[fetchAll] Interrupted (' + e.message + ') — partial results used');
+    settled = FUNDS.map((_, i) => ({ status: 'rejected', reason: e }));
   }
+
+  // 合并到 fetched
+  const newFetched = Object.assign({}, fetched);
+  const failed = [];
+  let ok = 0;
+  for (let i = 0; i < FUNDS.length; i++) {
+    const r = settled[i];
+    if (r.status === 'fulfilled' && r.value) {
+      newFetched[FUNDS[i].code] = r.value;
+      ok++;
+    } else if (!fetched[FUNDS[i].code]) {
+      failed.push(FUNDS[i].code);
+    }
+  }
+  fetched = newFetched;
+
+  if (errEl) {
+    if (failed.length > 0) {
+      errEl.textContent = '以下基金暂无数据（保留上次估值）：' + failed.join(', ');
+      errEl.style.display = 'block';
+    } else {
+      errEl.style.display = 'none';
+    }
+  }
+
+  console.log('[fetchAll] OK=' + ok + '/' + FUNDS.length + ' entries=' + Object.keys(fetched).length);
+  render();
+  resetCountdown();
+  unlockUI();
 }
 
 function render() {

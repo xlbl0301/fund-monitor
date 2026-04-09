@@ -222,39 +222,42 @@ if (checkInitData()) {
 function fmt(v, dec=2) { return Number(v).toFixed(dec); }
 function fmtY(v) { return '¥' + Number(v).toLocaleString('zh-CN',{minimumFractionDigits:2,maxFractionDigits:2}); }
 
+// 全局 JSONP 接收器（天天基金 API 始终回调 jsonpgz，忽略 URL 中的 callback 参数）
+window._jsonpCallbacks = {};
+window._jsonpTimers = {};
+window.jsonpgz = function(data) {
+  if (!data || !data.fundcode) return;
+  const code = data.fundcode;
+  if (window._jsonpCallbacks[code]) {
+    clearTimeout(window._jsonpTimers[code]);
+    window._jsonpCallbacks[code](data);
+    delete window._jsonpCallbacks[code];
+    delete window._jsonpTimers[code];
+    const el = document.getElementById('jsonp_script_' + code);
+    if (el) el.remove();
+  }
+};
+
 function fetchOneJSONP(code) {
   return new Promise((resolve) => {
-    const cbName = 'fundcb_' + code + '_' + Date.now();
-    let settled = false;
-
-    window[cbName] = function(data) {
-      if (settled) return;
-      settled = true;
-      delete window[cbName];
-      const el = document.getElementById(cbName);
-      if (el) el.remove();
-      resolve(data);
-    };
-
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      delete window[cbName];
-      const el = document.getElementById(cbName);
+    window._jsonpCallbacks[code] = resolve;
+    window._jsonpTimers[code] = setTimeout(() => {
+      delete window._jsonpCallbacks[code];
+      delete window._jsonpTimers[code];
+      const el = document.getElementById('jsonp_script_' + code);
       if (el) el.remove();
       resolve(null);
     }, 10000);
 
     const script = document.createElement('script');
-    script.id = cbName;
-    script.src = 'https://fundgz.1234567.com.cn/js/' + code + '.js?rt=' + Date.now() + '&callback=' + cbName;
-    script.onload = function() { clearTimeout(timer); };
+    script.id = 'jsonp_script_' + code;
+    // callback 参数不影响结果（API 固定返回 jsonpgz(...)），但保留以便调试
+    script.src = 'https://fundgz.1234567.com.cn/js/' + code + '.js?rt=' + Date.now();
     script.onerror = function() {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      delete window[cbName];
-      const el = document.getElementById(cbName);
+      clearTimeout(window._jsonpTimers[code]);
+      delete window._jsonpCallbacks[code];
+      delete window._jsonpTimers[code];
+      const el = document.getElementById('jsonp_script_' + code);
       if (el) el.remove();
       resolve(null);
     };

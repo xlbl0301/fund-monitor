@@ -39,16 +39,16 @@ jobs:
           ctx.verify_mode = ssl.CERT_NONE
 
           FUNDS = [
-              {"cost":44076.21,"group":"黄金 & 贵金属","color":"#ff4d4f"},
-              {"cost":37545.9,"group":"稀土","color":"#ff7a45"},
+              {"code":"008702","name":"华夏黄金ETF联接C","cost":44076.21,"group":"黄金 & 贵金属","color":"#ff4d4f"},
+              {"code":"011036","name":"嘉实中证稀土产业ETF联接C","cost":37545.9,"group":"稀土","color":"#ff7a45"},
               {"code":"014978","name":"华安纳斯达克100ETF联接(QDII)C","cost":11643.25,"group":"纳斯达克100","color":"#ffc53d"},
               {"code":"018044","name":"天弘纳斯达克100指数发起(QDII)C","cost":21089.18,"group":"纳斯达克100","color":"#73d13d"},
               {"code":"008971","name":"大成纳斯达克100ETF联接(QDII)C","cost":1624.49,"group":"纳斯达克100","color":"#36cfc9"},
               {"code":"019525","name":"华泰柏瑞纳斯达克100ETF发起式联接(QDII)C","cost":3538.59,"group":"纳斯达克100","color":"#40a9ff"},
               {"code":"004433","name":"南方有色金属ETF联接C","cost":48064.98,"group":"黄金 & 贵金属","color":"#9254de"},
               {"code":"016453","name":"南方纳斯达克100指数发起(QDII)C","cost":1960.41,"group":"纳斯达克100","color":"#f759ab"},
-              {"cost":3504.28,"group":"电网设备","color":"#bfbfbf"},
-              {"code":"016533","name":"嘉实纳斯达克100ETF发起联接(QDII)C","cost":280.96,"group":"纳斯达克100","color":"#d4b106"},
+              {"code":"025857","name":"华夏中证电网设备主题ETF发起式联接C","cost":3504.28,"group":"电网设备","color":"#bfbfbf"},
+              {"code":"016533","name":"嘉实纳斯达克100ETF发起联接(QDII)C","cost":280.96,"group":"纳斯达克100","color":"#d4b106"}
           ]
 
           fund_data = {}

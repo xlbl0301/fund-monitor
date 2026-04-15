@@ -1,491 +1,491 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>📈 基金实时估值监控</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;
-  background:linear-gradient(160deg,#0d1117 0%,#161b22 60%,#0d1b2a 100%);
-  min-height:100vh;color:#c9d1d9;padding:16px 12px 32px}
-
-/* ── 顶部 ── */
-.hd{text-align:center;margin-bottom:24px}
-.hd h1{font-size:1.5rem;color:#58a6ff;letter-spacing:3px}
-.hd .ts{font-size:.8rem;color:#8b949e;margin-top:5px}
-.ctrl{display:flex;gap:10px;justify-content:center;margin-top:10px;align-items:center}
-.btn{padding:6px 16px;border-radius:8px;border:none;cursor:pointer;font-size:.82rem;
-  font-family:inherit;transition:opacity .2s}
-.btn-primary{background:#238636;color:#fff}
-.btn-primary:hover{opacity:.85}
-.btn-primary:disabled{opacity:.5;cursor:not-allowed}
-.btn-hint{font-size:.72rem;color:#484f58}
-.live-dot{width:8px;height:8px;border-radius:50%;background:#3fb950;
-  display:inline-block;margin-right:4px;animation:pulse 2s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-
-/* ── 卡片 ── */
-.card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
-  border-radius:14px;padding:18px 20px;margin-bottom:16px;backdrop-filter:blur(6px)}
-.card-title{font-size:.75rem;color:#8b949e;letter-spacing:1px;margin-bottom:14px;
-  text-transform:uppercase}
-
-/* ── 汇总卡 ── */
-.sum-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-.sum-item{text-align:center;padding:10px 4px;
-  background:rgba(255,255,255,.04);border-radius:10px}
-.sum-item .sv{font-size:1.35rem;font-weight:700}
-.sum-item .sl{font-size:.7rem;color:#8b949e;margin-top:4px}
-
-/* ── 表格 ── */
-table{width:100%;border-collapse:collapse;font-size:.84rem}
-th{color:#8b949e;font-size:.72rem;padding:7px 8px;text-align:right;
-  border-bottom:1px solid rgba(255,255,255,.1);white-space:nowrap}
-th:first-child{text-align:left}
-td{padding:9px 8px;border-bottom:1px solid rgba(255,255,255,.05);vertical-align:middle}
-td.r{text-align:right}
-tr:last-child td{border-bottom:none}
-tr:hover td{background:rgba(255,255,255,.03)}
-.fc{font-weight:700;color:#58a6ff;font-size:.9rem}
-.fname{color:#8b949e;font-size:.72rem}
-.num{font-family:monospace}
-.bold{font-weight:700}
-.group-header td{background:rgba(88,166,255,.08);color:#58a6ff;
-  font-size:.75rem;font-weight:700;letter-spacing:1px;padding:6px 8px}
-
-/* ── 条形图 ── */
-.bar-row{display:flex;align-items:center;gap:10px;margin-bottom:9px}
-.bl{width:56px;font-size:.75rem;color:#8b949e;flex-shrink:0}
-.bt{flex:1;height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden}
-.bf{height:100%;border-radius:4px;transition:width .5s}
-.bv{width:76px;text-align:right;font-size:.78rem;font-weight:700;flex-shrink:0}
-
-/* ── 饼图区 ── */
-.pie-wrap{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
-.leg-item{display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:.78rem}
-.leg-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.leg-lbl{color:#c9d1d9;width:54px}
-.leg-pct{color:#8b949e;width:40px;text-align:right}
-
-/* ── 加载状态 ── */
-.loading-overlay{position:fixed;inset:0;background:rgba(13,17,23,.85);
-  display:flex;align-items:center;justify-content:center;z-index:100;
-  font-size:.9rem;color:#58a6ff}
-.loading-overlay.hidden{display:none}
-
-/* ── 底部 ── */
-.footer{text-align:center;font-size:.72rem;color:#484f58;margin-top:8px}
-
-/* ── 数据来源标签 ── */
-.data-source{text-align:center;font-size:.7rem;color:#484f58;margin-bottom:4px}
-
-@media(max-width:640px){
-  .sum-grid{grid-template-columns:repeat(2,1fr)}
-  .sum-item .sv{font-size:1.1rem}
-  table{font-size:.76rem}
-  td,th{padding:6px 5px}
-}
-</style>
-</head>
-<body>
-
-<!-- 加载遮罩 -->
-<div id="loading" class="loading-overlay hidden">
-  正在刷新数据…
-</div>
-
-<!-- 错误提示 -->
-<div id="errorMsg" style="display:none;text-align:center;padding:8px 16px;
-  background:rgba(255,77,77,.15);border:1px solid rgba(255,77,77,.4);
-  border-radius:8px;margin:0 12px 16px;font-size:.8rem;color:#ff7875">
-</div>
-
-<div class="hd">
-  <h1>📈 基金实时估值监控</h1>
-  <div class="ts" id="updateTime">加载中…</div>
-  <div class="ctrl">
-    <span id="liveIndicator" class="live-dot" title="自动刷新中"></span>
-    <button class="btn btn-primary" id="refreshBtn" onclick="fetchAll()">🔄 刷新数据</button>
-    <span class="btn-hint" id="countdown">每5分钟自动刷新</span>
-  </div>
-</div>
-
-<!-- 汇总 -->
-<div class="card">
-  <div class="card-title">▸ 总览</div>
-  <div class="sum-grid">
-    <div class="sum-item">
-      <div class="sv" style="color:#58a6ff" id="totalCost">—</div>
-      <div class="sl">总持仓成本</div>
-    </div>
-    <div class="sum-item">
-      <div class="sv" style="color:#58a6ff" id="totalValue">—</div>
-      <div class="sl">今日估算市值</div>
-    </div>
-    <div class="sum-item">
-      <div class="sv" id="totalProfit">—</div>
-      <div class="sl">今日浮动收益</div>
-    </div>
-    <div class="sum-item">
-      <div class="sv" id="totalPct">—</div>
-      <div class="sl">今日综合涨跌幅</div>
-    </div>
-  </div>
-</div>
-
-<!-- 涨跌幅条形图 -->
-<div class="card">
-  <div class="card-title">▸ 今日涨跌幅对比</div>
-  <div id="barChart"><!-- JS 填充 --></div>
-</div>
-
-<!-- 明细表 -->
-<div class="card">
-  <div class="card-title">▸ 基金明细</div>
-  <table>
-    <thead>
-      <tr>
-        <th>基金</th><th>持仓成本</th><th>估算份额</th>
-        <th>昨日净值</th><th>实时估值</th>
-        <th>涨跌幅</th><th>今日浮盈</th><th>今日市值</th>
-      </tr>
-    </thead>
-    <tbody id="fundTable"><!-- JS 填充 --></tbody>
-  </table>
-</div>
-
-<!-- 资产分布 -->
-<div class="card">
-  <div class="card-title">▸ 持仓资产分布</div>
-  <div class="pie-wrap">
-    <svg width="220" height="220" viewBox="0 0 220 220" id="pieChart">
-      <circle cx="110" cy="110" r="90" fill="rgba(255,255,255,.05)"/>
-    </svg>
-    <div style="flex:1;min-width:160px" id="pieLegend"><!-- JS 填充 --></div>
-  </div>
-</div>
-
-<div class="footer">盘中估值仅供参考，以基金公司公布的实际净值为准</div>
-
-<script>
-// ══════════════════════════════════════════
-//  持仓配置
-//  注意：gsz/dwjz 由 GitHub Actions 在构建时预填
-//  若浏览器需要刷新，点击「刷新数据」按钮
-// ══════════════════════════════════════════
-const FUNDS = [
-  {code:"008702",name:"华夏黄金ETF联接C",   cost:43122.40, gsz:"2.2469", dwjz:"2.2915", group:"黄金 & 贵金属",color:"#ff4d4f"},
-  {code:"011036",name:"嘉实中证稀土产业ETF联接C",cost:47579.02, gsz:"1.3286", dwjz:"1.3227", group:"稀土",     color:"#ff7a45"},
-  {code:"014978",name:"华安纳斯达克100ETF联接(QDII)C", cost:12241.67, gsz:"6.9262", dwjz:"6.7408", group:"纳斯达克100",color:"#ffc53d"},
-  {code:"018044",name:"天弘纳斯达克100指数发起(QDII)C", cost:22112.20, gsz:"1.7457", dwjz:"1.6990", group:"纳斯达克100",color:"#73d13d"},
-  {code:"008971",name:"大成纳斯达克100ETF联接(QDII)C",  cost:1707.20,  gsz:"5.4292", dwjz:"5.2839", group:"纳斯达克100",color:"#36cfc9"},
-  {code:"019525",name:"华泰柏瑞纳斯达克100ETF发起式联接(QDII)C",cost:3707.05, gsz:"1.4143", dwjz:"1.3764", group:"纳斯达克100",color:"#40a9ff"},
-  {code:"004433",name:"南方有色金属ETF联接C",           cost:50473.42, gsz:"1.9952", dwjz:"2.0066", group:"黄金 & 贵金属",color:"#9254de"},
-  {code:"016453",name:"南方纳斯达克100指数发起(QDII)C",  cost:2055.35,  gsz:"1.9726", dwjz:"1.9198", group:"纳斯达克100",color:"#f759ab"},
-  {code:"025857",name:"华夏中证电网设备主题ETF发起式联接C",cost:3004.53,  gsz:"1.2996", dwjz:"1.3092", group:"电网设备",  color:"#bfbfbf"},
-  {code:"016533",name:"嘉实纳斯达克100ETF发起联接(QDII)C",cost:294.68,   gsz:"1.8465", dwjz:"1.7971", group:"纳斯达克100",color:"#d4b106"},
-];
-
-let fetched = {};
-let refreshTimer = null;
-let countdownTimer = null;
-let cd = 300;
-let hasInitData = false;
-
-// GROUP_LABELS 必须在 render() 之前声明（const 有 TDZ，必须先初始化才能访问）
-const GROUP_LABELS = {
-  "黄金 & 贵金属": "黄金 & 贵金属",
-  "稀土": "稀土产业",
-  "纳斯达克100": "纳斯达克100",
-  "电网设备": "电网设备",
-};
-
-// 初始化：检查 FUNDS 中是否有有效数据
-function checkInitData() {
-  const f = FUNDS[0];
-  return f && f.gsz && f.gsz !== '{{' && f.dwjz && f.dwjz !== '{{';
-}
-
-if (checkInitData()) {
-  hasInitData = true;
-  FUNDS.forEach(f => {
-    fetched[f.code] = { gsz: f.gsz, dwjz: f.dwjz };
-  });
-  render();
-  // 有预填数据：启动自动刷新，但用预填数据作为基准
-  resetCountdown();
-} else {
-  resetCountdown(); // 无预填数据：启动自动刷新
-}
-
-function fmt(v, dec=2) { return Number(v).toFixed(dec); }
-function fmtY(v) { return '¥' + Number(v).toLocaleString('zh-CN',{minimumFractionDigits:2,maxFractionDigits:2}); }
-
-// 全局 JSONP 接收器（天天基金 API 始终回调 jsonpgz，忽略 URL 中的 callback 参数）
-window._jsonpCallbacks = {};
-window._jsonpTimers = {};
-window.jsonpgz = function(data) {
-  if (!data || !data.fundcode) return;
-  const code = data.fundcode;
-  if (window._jsonpCallbacks[code]) {
-    clearTimeout(window._jsonpTimers[code]);
-    window._jsonpCallbacks[code](data);
-    delete window._jsonpCallbacks[code];
-    delete window._jsonpTimers[code];
-    const el = document.getElementById('jsonp_script_' + code);
-    if (el) el.remove();
-  }
-};
-
-function fetchOneJSONP(code) {
-  return new Promise((resolve) => {
-    window._jsonpCallbacks[code] = resolve;
-    window._jsonpTimers[code] = setTimeout(() => {
-      delete window._jsonpCallbacks[code];
-      delete window._jsonpTimers[code];
-      const el = document.getElementById('jsonp_script_' + code);
-      if (el) el.remove();
-      resolve(null);
-    }, 10000);
-
-    const script = document.createElement('script');
-    script.id = 'jsonp_script_' + code;
-    // callback 参数不影响结果（API 固定返回 jsonpgz(...)），但保留以便调试
-    script.src = 'https://fundgz.1234567.com.cn/js/' + code + '.js?rt=' + Date.now();
-    script.onerror = function() {
-      clearTimeout(window._jsonpTimers[code]);
-      delete window._jsonpCallbacks[code];
-      delete window._jsonpTimers[code];
-      const el = document.getElementById('jsonp_script_' + code);
-      if (el) el.remove();
-      resolve(null);
-    };
-    document.head.appendChild(script);
-  });
-}
-
-// 安全解锁函数：防止 UI 卡死在"刷新中"状态
-function unlockUI() {
-  const btn = document.getElementById('refreshBtn');
-  if (btn) { btn.disabled = false; btn.textContent = '🔄 刷新数据'; }
-  const loading = document.getElementById('loading');
-  if (loading) loading.classList.add('hidden');
-  // 若 fetchAll 未完成，render() 和 resetCountdown() 留待 JSONP 回调自然处理
-}
-
-// 并发获取所有基金数据（Promise.allSettled 同时发出，不再串行等待）
-function fetchAllFunds() {
-  return Promise.allSettled(FUNDS.map(f => fetchOneJSONP(f.code)));
-}
-
-async function fetchAll() {
-  const btn = document.getElementById('refreshBtn');
-  if (btn && btn.disabled) return;
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ 刷新中…'; }
-  const loading = document.getElementById('loading');
-  if (loading) loading.classList.remove('hidden');
-  const errEl = document.getElementById('errorMsg');
-  if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
-
-  const fallback = Object.assign({}, fetched);
-  const t0 = Date.now();
-
-  // 并发所有请求，8 秒全局超时
-  let settled;
-  try {
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('TIMEOUT')), 8000)
-    );
-    settled = await Promise.race([fetchAllFunds(), timeoutPromise]);
-    console.log('[fetchAll] All settled in ' + (Date.now() - t0) + 'ms');
-  } catch(e) {
-    console.warn('[fetchAll] Interrupted (' + e.message + ') — partial results used');
-    settled = FUNDS.map((_, i) => ({ status: 'rejected', reason: e }));
-  }
-
-  // 合并到 fetched
-  const newFetched = Object.assign({}, fetched);
-  const failed = [];
-  let ok = 0;
-  for (let i = 0; i < FUNDS.length; i++) {
-    const r = settled[i];
-    if (r.status === 'fulfilled' && r.value) {
-      newFetched[FUNDS[i].code] = r.value;
-      ok++;
-    } else if (!fetched[FUNDS[i].code]) {
-      failed.push(FUNDS[i].code);
-    }
-  }
-  fetched = newFetched;
-
-  if (errEl) {
-    if (failed.length > 0) {
-      errEl.textContent = '以下基金暂无数据（保留上次估值）：' + failed.join(', ');
-      errEl.style.display = 'block';
-    } else {
-      errEl.style.display = 'none';
-    }
-  }
-
-  console.log('[fetchAll] OK=' + ok + '/' + FUNDS.length + ' entries=' + Object.keys(fetched).length);
-  render();
-  resetCountdown();
-  unlockUI();
-}
-
-function render() {
-  const now = new Date();
-  document.getElementById('updateTime').textContent =
-    '更新时间：' + now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') + ':' + String(now.getSeconds()).padStart(2,'0') + ' · 数据来源：天天基金';
-
-  let totalCost = 0, totalValue = 0, totalProfit = 0;
-  let rows = [];
-  let maxPct = 0;
-
-  FUNDS.forEach(f => {
-    const d = fetched[f.code];
-    if (!d) return;
-    const gsz = parseFloat(d.gsz);
-    const dwjz = parseFloat(d.dwjz);
-    if (isNaN(gsz) || isNaN(dwjz)) return;
-    const shares = f.cost / dwjz;
-    const curValue = shares * gsz;
-    const profit = curValue - f.cost;
-    const pct = (gsz - dwjz) / dwjz * 100;
-    const pctAbs = Math.abs(pct);
-    if (pctAbs > maxPct) maxPct = pctAbs;
-
-    totalCost += f.cost;
-    totalValue += curValue;
-    totalProfit += profit;
-
-    rows.push({...f, gsz, dwjz, shares, curValue, profit, pct});
-  });
-
-  // ── 总览：即使 rows 为空也显示默认值 ──
-  const totalPct = totalCost > 0 ? (totalValue - totalCost) / totalCost * 100 : 0;
-  const isUp = totalProfit >= 0;
-  const color = isUp ? '#ff4d4f' : '#3fb950';
-  document.getElementById('totalCost').textContent = totalCost > 0 ? fmtY(totalCost) : '—';
-  document.getElementById('totalValue').textContent = totalCost > 0 ? fmtY(totalValue) : '—';
-  const pEl = document.getElementById('totalProfit');
-  pEl.textContent = totalCost > 0 ? (isUp?'+':'') + fmtY(totalProfit) : '—';
-  pEl.style.color = totalCost > 0 ? color : '';
-  const pctEl = document.getElementById('totalPct');
-  pctEl.textContent = totalCost > 0 ? (isUp?'+':'') + fmt(totalPct,2) + '%' : '—';
-  pctEl.style.color = totalCost > 0 ? color : '';
-
-  // ── 条形图 ──
-  const barEl = document.getElementById('barChart');
-  if (rows.length === 0) {
-    barEl.innerHTML = '<div style="text-align:center;color:#484f58;font-size:.8rem;padding:12px">暂无数据</div>';
-  } else {
-    barEl.innerHTML = rows.map(r => {
-      const w = maxPct > 0 ? Math.round(Math.abs(r.pct) / maxPct * 100) : 0;
-      const c = r.pct >= 0 ? '#ff4d4f' : '#3fb950';
-      const sign = r.pct >= 0 ? '+' : '';
-      return '<div class="bar-row">' +
-        '<span class="bl">' + r.code + '</span>' +
-        '<div class="bt"><div class="bf" style="width:' + w + '%;background:' + c + '"></div></div>' +
-        '<span class="bv" style="color:' + c + '">' + sign + fmt(r.pct,2) + '%</span>' +
-      '</div>';
-    }).join('');
-  }
-
-  // ── 分组表 ──
-  const groups = {};
-  rows.forEach(r => {
-    const g = GROUP_LABELS[r.group] || r.group;
-    if (!groups[g]) groups[g] = [];
-    groups[g].push(r);
-  });
-
-  const tableEl = document.getElementById('fundTable');
-  if (rows.length === 0) {
-    tableEl.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#484f58;padding:24px">暂无数据，请点击「刷新数据」获取实时数据</td></tr>';
-  } else {
-    tableEl.innerHTML = Object.entries(groups).map(([gName, items]) => {
-      const rows2 = items.map(r => {
-        const pc = r.pct >= 0 ? '#ff4d4f' : '#3fb950';
-        const sc = r.profit >= 0 ? '#ff4d4f' : '#3fb950';
-        return '<tr>' +
-          '<td><span class="fc">' + r.code + '</span><br><small class="fname">' + r.name + '</small></td>' +
-          '<td class="r">' + fmtY(r.cost) + '</td>' +
-          '<td class="r num">' + fmt(r.shares,2) + '</td>' +
-          '<td class="r num">' + r.dwjz + '</td>' +
-          '<td class="r num bold" style="color:' + pc + '">' + r.gsz + '</td>' +
-          '<td class="r bold" style="color:' + pc + '">' + (r.pct>=0?'+':'') + fmt(r.pct,2) + '%</td>' +
-          '<td class="r bold" style="color:' + sc + '">' + (r.profit>=0?'+':'') + fmtY(r.profit) + '</td>' +
-          '<td class="r bold" style="color:' + pc + '">' + fmtY(r.curValue) + '</td>' +
-        '</tr>';
-      }).join('');
-      return '<tr class="group-header"><td colspan="8">' + gName + '</td></tr>' + rows2;
-    }).join('');
-  }
-
-  // ── 饼图 ──
-  const pieEl = document.getElementById('pieChart');
-  const legEl = document.getElementById('pieLegend');
-  if (rows.length === 0) {
-    pieEl.innerHTML = '<circle cx="110" cy="110" r="90" fill="rgba(255,255,255,.05)"/>' +
-      '<circle cx="110" cy="110" r="42" fill="#161b22"/>' +
-      '<text x="110" y="106" text-anchor="middle" fill="#484f58" font-size="11">暂无数据</text>';
-    legEl.innerHTML = '<div style="color:#484f58;font-size:.78rem;text-align:center;padding:12px">暂无数据</div>';
-  } else {
-    const cx = 110, cy = 110, r = 90;
-    let startAngle = -90;
-    const totalVal = totalCost;
-    let paths = [];
-    let legends = [];
-
-    rows.forEach(r => {
-      const angle = (r.cost / totalVal) * 360;
-      const endAngle = startAngle + angle;
-      const x1 = cx + r * Math.cos(startAngle * Math.PI / 180);
-      const y1 = cy + r * Math.sin(startAngle * Math.PI / 180);
-      const x2 = cx + r * Math.cos(endAngle * Math.PI / 180);
-      const y2 = cy + r * Math.sin(endAngle * Math.PI / 180);
-      const largeArc = angle > 180 ? 1 : 0;
-      const d = 'M' + cx + ',' + cy + ' L' + x1.toFixed(2) + ',' + y1.toFixed(2) + ' A' + r + ',' + r + ' 0 ' + largeArc + ',1 ' + x2.toFixed(2) + ',' + y2.toFixed(2) + ' Z';
-      paths.push('<path d="' + d + '" fill="' + r.color + '" opacity="0.85"/>');
-      const pct = (r.cost / totalVal * 100).toFixed(1);
-      legends.push('<div class="leg-item"><span class="leg-dot" style="background:' + r.color + '"></span><span class="leg-lbl">' + r.code + '</span><span class="leg-pct">' + pct + '%</span></div>');
-      startAngle = endAngle;
-    });
-
-    const costWan = (totalCost / 10000).toFixed(1);
-    pieEl.innerHTML = paths.join('') +
-      '<circle cx="' + cx + '" cy="' + cy + '" r="42" fill="#161b22"/>' +
-      '<text x="' + cx + '" y="106" text-anchor="middle" fill="#c9d1d9" font-size="11">总成本</text>' +
-      '<text x="' + cx + '" y="122" text-anchor="middle" fill="#58a6ff" font-size="12" font-weight="bold">¥' + costWan + '万</text>';
-    legEl.innerHTML = legends.join('');
-  }
-}
-
-function resetCountdown() {
-  cd = 300;
-  if (refreshTimer) clearInterval(refreshTimer);
-  if (countdownTimer) clearInterval(countdownTimer);
-  refreshTimer = setInterval(fetchAll, 5 * 60 * 1000);
-  countdownTimer = setInterval(() => {
-    cd--;
-    const m = String(Math.floor(cd / 60)).padStart(2, '0');
-    const s = String(cd % 60).padStart(2, '0');
-    document.getElementById('countdown').textContent = m + ':' + s + ' 后自动刷新';
-    if (cd <= 0) resetCountdown();
-  }, 1000);
-}
-
-// 首次：如果没有预填数据则主动拉取（同时立即启动倒计时显示）
-if (!hasInitData) {
-  // 立即显示倒计时（fetchAll 完成前先给用户反馈）
-  const m0 = String(Math.floor(300 / 60)).padStart(2, '0');
-  const s0 = String(300 % 60).padStart(2, '0');
-  const cdEl = document.getElementById('countdown');
-  if (cdEl) cdEl.textContent = m0 + ':' + s0 + ' 后自动刷新';
-  fetchAll();
-}
-</script>
-</body>
-</html>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>📈 基金实时估值监控</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;
+  background:linear-gradient(160deg,#0d1117 0%,#161b22 60%,#0d1b2a 100%);
+  min-height:100vh;color:#c9d1d9;padding:16px 12px 32px}
+
+/* ── 顶部 ── */
+.hd{text-align:center;margin-bottom:24px}
+.hd h1{font-size:1.5rem;color:#58a6ff;letter-spacing:3px}
+.hd .ts{font-size:.8rem;color:#8b949e;margin-top:5px}
+.ctrl{display:flex;gap:10px;justify-content:center;margin-top:10px;align-items:center}
+.btn{padding:6px 16px;border-radius:8px;border:none;cursor:pointer;font-size:.82rem;
+  font-family:inherit;transition:opacity .2s}
+.btn-primary{background:#238636;color:#fff}
+.btn-primary:hover{opacity:.85}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn-hint{font-size:.72rem;color:#484f58}
+.live-dot{width:8px;height:8px;border-radius:50%;background:#3fb950;
+  display:inline-block;margin-right:4px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ── 卡片 ── */
+.card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+  border-radius:14px;padding:18px 20px;margin-bottom:16px;backdrop-filter:blur(6px)}
+.card-title{font-size:.75rem;color:#8b949e;letter-spacing:1px;margin-bottom:14px;
+  text-transform:uppercase}
+
+/* ── 汇总卡 ── */
+.sum-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.sum-item{text-align:center;padding:10px 4px;
+  background:rgba(255,255,255,.04);border-radius:10px}
+.sum-item .sv{font-size:1.35rem;font-weight:700}
+.sum-item .sl{font-size:.7rem;color:#8b949e;margin-top:4px}
+
+/* ── 表格 ── */
+table{width:100%;border-collapse:collapse;font-size:.84rem}
+th{color:#8b949e;font-size:.72rem;padding:7px 8px;text-align:right;
+  border-bottom:1px solid rgba(255,255,255,.1);white-space:nowrap}
+th:first-child{text-align:left}
+td{padding:9px 8px;border-bottom:1px solid rgba(255,255,255,.05);vertical-align:middle}
+td.r{text-align:right}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.03)}
+.fc{font-weight:700;color:#58a6ff;font-size:.9rem}
+.fname{color:#8b949e;font-size:.72rem}
+.num{font-family:monospace}
+.bold{font-weight:700}
+.group-header td{background:rgba(88,166,255,.08);color:#58a6ff;
+  font-size:.75rem;font-weight:700;letter-spacing:1px;padding:6px 8px}
+
+/* ── 条形图 ── */
+.bar-row{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+.bl{width:56px;font-size:.75rem;color:#8b949e;flex-shrink:0}
+.bt{flex:1;height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden}
+.bf{height:100%;border-radius:4px;transition:width .5s}
+.bv{width:76px;text-align:right;font-size:.78rem;font-weight:700;flex-shrink:0}
+
+/* ── 饼图区 ── */
+.pie-wrap{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.leg-item{display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:.78rem}
+.leg-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.leg-lbl{color:#c9d1d9;width:54px}
+.leg-pct{color:#8b949e;width:40px;text-align:right}
+
+/* ── 加载状态 ── */
+.loading-overlay{position:fixed;inset:0;background:rgba(13,17,23,.85);
+  display:flex;align-items:center;justify-content:center;z-index:100;
+  font-size:.9rem;color:#58a6ff}
+.loading-overlay.hidden{display:none}
+
+/* ── 底部 ── */
+.footer{text-align:center;font-size:.72rem;color:#484f58;margin-top:8px}
+
+/* ── 数据来源标签 ── */
+.data-source{text-align:center;font-size:.7rem;color:#484f58;margin-bottom:4px}
+
+@media(max-width:640px){
+  .sum-grid{grid-template-columns:repeat(2,1fr)}
+  .sum-item .sv{font-size:1.1rem}
+  table{font-size:.76rem}
+  td,th{padding:6px 5px}
+}
+</style>
+</head>
+<body>
+
+<!-- 加载遮罩 -->
+<div id="loading" class="loading-overlay hidden">
+  正在刷新数据…
+</div>
+
+<!-- 错误提示 -->
+<div id="errorMsg" style="display:none;text-align:center;padding:8px 16px;
+  background:rgba(255,77,77,.15);border:1px solid rgba(255,77,77,.4);
+  border-radius:8px;margin:0 12px 16px;font-size:.8rem;color:#ff7875">
+</div>
+
+<div class="hd">
+  <h1>📈 基金实时估值监控</h1>
+  <div class="ts" id="updateTime">加载中…</div>
+  <div class="ctrl">
+    <span id="liveIndicator" class="live-dot" title="自动刷新中"></span>
+    <button class="btn btn-primary" id="refreshBtn" onclick="fetchAll()">🔄 刷新数据</button>
+    <span class="btn-hint" id="countdown">每5分钟自动刷新</span>
+  </div>
+</div>
+
+<!-- 汇总 -->
+<div class="card">
+  <div class="card-title">▸ 总览</div>
+  <div class="sum-grid">
+    <div class="sum-item">
+      <div class="sv" style="color:#58a6ff" id="totalCost">—</div>
+      <div class="sl">总持仓成本</div>
+    </div>
+    <div class="sum-item">
+      <div class="sv" style="color:#58a6ff" id="totalValue">—</div>
+      <div class="sl">今日估算市值</div>
+    </div>
+    <div class="sum-item">
+      <div class="sv" id="totalProfit">—</div>
+      <div class="sl">今日浮动收益</div>
+    </div>
+    <div class="sum-item">
+      <div class="sv" id="totalPct">—</div>
+      <div class="sl">今日综合涨跌幅</div>
+    </div>
+  </div>
+</div>
+
+<!-- 涨跌幅条形图 -->
+<div class="card">
+  <div class="card-title">▸ 今日涨跌幅对比</div>
+  <div id="barChart"><!-- JS 填充 --></div>
+</div>
+
+<!-- 明细表 -->
+<div class="card">
+  <div class="card-title">▸ 基金明细</div>
+  <table>
+    <thead>
+      <tr>
+        <th>基金</th><th>持仓成本</th><th>估算份额</th>
+        <th>昨日净值</th><th>实时估值</th>
+        <th>涨跌幅</th><th>今日浮盈</th><th>今日市值</th>
+      </tr>
+    </thead>
+    <tbody id="fundTable"><!-- JS 填充 --></tbody>
+  </table>
+</div>
+
+<!-- 资产分布 -->
+<div class="card">
+  <div class="card-title">▸ 持仓资产分布</div>
+  <div class="pie-wrap">
+    <svg width="220" height="220" viewBox="0 0 220 220" id="pieChart">
+      <circle cx="110" cy="110" r="90" fill="rgba(255,255,255,.05)"/>
+    </svg>
+    <div style="flex:1;min-width:160px" id="pieLegend"><!-- JS 填充 --></div>
+  </div>
+</div>
+
+<div class="footer">盘中估值仅供参考，以基金公司公布的实际净值为准</div>
+
+<script>
+// ══════════════════════════════════════════
+//  持仓配置
+//  注意：gsz/dwjz 由 GitHub Actions 在构建时预填
+//  若浏览器需要刷新，点击「刷新数据」按钮
+// ══════════════════════════════════════════
+const FUNDS = [
+  {code:"008702",name:"华夏黄金ETF联接C",   cost:44076.21, gsz:"2.2469", dwjz:"2.2915", group:"黄金 & 贵金属",color:"#ff4d4f"},
+  {code:"011036",name:"嘉实中证稀土产业ETF联接C",cost:37545.90, gsz:"1.3286", dwjz:"1.3227", group:"稀土",     color:"#ff7a45"},
+  {code:"014978",name:"华安纳斯达克100ETF联接(QDII)C", cost:11705.59, gsz:"6.9262", dwjz:"6.7408", group:"纳斯达克100",color:"#ffc53d"},
+  {code:"018044",name:"天弘纳斯达克100指数发起(QDII)C", cost:21196.47, gsz:"1.7457", dwjz:"1.6990", group:"纳斯达克100",color:"#73d13d"},
+  {code:"008971",name:"大成纳斯达克100ETF联接(QDII)C",  cost:1633.21,  gsz:"5.4292", dwjz:"5.2839", group:"纳斯达克100",color:"#36cfc9"},
+  {code:"019525",name:"华泰柏瑞纳斯达克100ETF发起式联接(QDII)C",cost:3556.16, gsz:"1.4143", dwjz:"1.3764", group:"纳斯达克100",color:"#40a9ff"},
+  {code:"004433",name:"南方有色金属ETF联接C",           cost:50817.85, gsz:"1.9952", dwjz:"2.0066", group:"黄金 & 贵金属",color:"#9254de"},
+  {code:"016453",name:"南方纳斯达克100指数发起(QDII)C",  cost:1970.26,  gsz:"1.9726", dwjz:"1.9198", group:"纳斯达克100",color:"#f759ab"},
+  {code:"025857",name:"华夏中证电网设备主题ETF发起式联接C",cost:3504.28,  gsz:"1.2996", dwjz:"1.3092", group:"电网设备",  color:"#bfbfbf"},
+  {code:"016533",name:"嘉实纳斯达克100ETF发起联接(QDII)C",cost:282.39,   gsz:"1.8465", dwjz:"1.7971", group:"纳斯达克100",color:"#d4b106"},
+];
+
+let fetched = {};
+let refreshTimer = null;
+let countdownTimer = null;
+let cd = 300;
+let hasInitData = false;
+
+// GROUP_LABELS 必须在 render() 之前声明（const 有 TDZ，必须先初始化才能访问）
+const GROUP_LABELS = {
+  "黄金 & 贵金属": "黄金 & 贵金属",
+  "稀土": "稀土产业",
+  "纳斯达克100": "纳斯达克100",
+  "电网设备": "电网设备",
+};
+
+// 初始化：检查 FUNDS 中是否有有效数据
+function checkInitData() {
+  const f = FUNDS[0];
+  return f && f.gsz && f.gsz !== '{{' && f.dwjz && f.dwjz !== '{{';
+}
+
+if (checkInitData()) {
+  hasInitData = true;
+  FUNDS.forEach(f => {
+    fetched[f.code] = { gsz: f.gsz, dwjz: f.dwjz };
+  });
+  render();
+  // 有预填数据：启动自动刷新，但用预填数据作为基准
+  resetCountdown();
+} else {
+  resetCountdown(); // 无预填数据：启动自动刷新
+}
+
+function fmt(v, dec=2) { return Number(v).toFixed(dec); }
+function fmtY(v) { return '¥' + Number(v).toLocaleString('zh-CN',{minimumFractionDigits:2,maxFractionDigits:2}); }
+
+// 全局 JSONP 接收器（天天基金 API 始终回调 jsonpgz，忽略 URL 中的 callback 参数）
+window._jsonpCallbacks = {};
+window._jsonpTimers = {};
+window.jsonpgz = function(data) {
+  if (!data || !data.fundcode) return;
+  const code = data.fundcode;
+  if (window._jsonpCallbacks[code]) {
+    clearTimeout(window._jsonpTimers[code]);
+    window._jsonpCallbacks[code](data);
+    delete window._jsonpCallbacks[code];
+    delete window._jsonpTimers[code];
+    const el = document.getElementById('jsonp_script_' + code);
+    if (el) el.remove();
+  }
+};
+
+function fetchOneJSONP(code) {
+  return new Promise((resolve) => {
+    window._jsonpCallbacks[code] = resolve;
+    window._jsonpTimers[code] = setTimeout(() => {
+      delete window._jsonpCallbacks[code];
+      delete window._jsonpTimers[code];
+      const el = document.getElementById('jsonp_script_' + code);
+      if (el) el.remove();
+      resolve(null);
+    }, 10000);
+
+    const script = document.createElement('script');
+    script.id = 'jsonp_script_' + code;
+    // callback 参数不影响结果（API 固定返回 jsonpgz(...)），但保留以便调试
+    script.src = 'https://fundgz.1234567.com.cn/js/' + code + '.js?rt=' + Date.now();
+    script.onerror = function() {
+      clearTimeout(window._jsonpTimers[code]);
+      delete window._jsonpCallbacks[code];
+      delete window._jsonpTimers[code];
+      const el = document.getElementById('jsonp_script_' + code);
+      if (el) el.remove();
+      resolve(null);
+    };
+    document.head.appendChild(script);
+  });
+}
+
+// 安全解锁函数：防止 UI 卡死在"刷新中"状态
+function unlockUI() {
+  const btn = document.getElementById('refreshBtn');
+  if (btn) { btn.disabled = false; btn.textContent = '🔄 刷新数据'; }
+  const loading = document.getElementById('loading');
+  if (loading) loading.classList.add('hidden');
+  // 若 fetchAll 未完成，render() 和 resetCountdown() 留待 JSONP 回调自然处理
+}
+
+// 并发获取所有基金数据（Promise.allSettled 同时发出，不再串行等待）
+function fetchAllFunds() {
+  return Promise.allSettled(FUNDS.map(f => fetchOneJSONP(f.code)));
+}
+
+async function fetchAll() {
+  const btn = document.getElementById('refreshBtn');
+  if (btn && btn.disabled) return;
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 刷新中…'; }
+  const loading = document.getElementById('loading');
+  if (loading) loading.classList.remove('hidden');
+  const errEl = document.getElementById('errorMsg');
+  if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+
+  const fallback = Object.assign({}, fetched);
+  const t0 = Date.now();
+
+  // 并发所有请求，8 秒全局超时
+  let settled;
+  try {
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('TIMEOUT')), 8000)
+    );
+    settled = await Promise.race([fetchAllFunds(), timeoutPromise]);
+    console.log('[fetchAll] All settled in ' + (Date.now() - t0) + 'ms');
+  } catch(e) {
+    console.warn('[fetchAll] Interrupted (' + e.message + ') — partial results used');
+    settled = FUNDS.map((_, i) => ({ status: 'rejected', reason: e }));
+  }
+
+  // 合并到 fetched
+  const newFetched = Object.assign({}, fetched);
+  const failed = [];
+  let ok = 0;
+  for (let i = 0; i < FUNDS.length; i++) {
+    const r = settled[i];
+    if (r.status === 'fulfilled' && r.value) {
+      newFetched[FUNDS[i].code] = r.value;
+      ok++;
+    } else if (!fetched[FUNDS[i].code]) {
+      failed.push(FUNDS[i].code);
+    }
+  }
+  fetched = newFetched;
+
+  if (errEl) {
+    if (failed.length > 0) {
+      errEl.textContent = '以下基金暂无数据（保留上次估值）：' + failed.join(', ');
+      errEl.style.display = 'block';
+    } else {
+      errEl.style.display = 'none';
+    }
+  }
+
+  console.log('[fetchAll] OK=' + ok + '/' + FUNDS.length + ' entries=' + Object.keys(fetched).length);
+  render();
+  resetCountdown();
+  unlockUI();
+}
+
+function render() {
+  const now = new Date();
+  document.getElementById('updateTime').textContent =
+    '更新时间：' + now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') + ':' + String(now.getSeconds()).padStart(2,'0') + ' · 数据来源：天天基金';
+
+  let totalCost = 0, totalValue = 0, totalProfit = 0;
+  let rows = [];
+  let maxPct = 0;
+
+  FUNDS.forEach(f => {
+    const d = fetched[f.code];
+    if (!d) return;
+    const gsz = parseFloat(d.gsz);
+    const dwjz = parseFloat(d.dwjz);
+    if (isNaN(gsz) || isNaN(dwjz)) return;
+    const shares = f.cost / dwjz;
+    const curValue = shares * gsz;
+    const profit = curValue - f.cost;
+    const pct = (gsz - dwjz) / dwjz * 100;
+    const pctAbs = Math.abs(pct);
+    if (pctAbs > maxPct) maxPct = pctAbs;
+
+    totalCost += f.cost;
+    totalValue += curValue;
+    totalProfit += profit;
+
+    rows.push({...f, gsz, dwjz, shares, curValue, profit, pct});
+  });
+
+  // ── 总览：即使 rows 为空也显示默认值 ──
+  const totalPct = totalCost > 0 ? (totalValue - totalCost) / totalCost * 100 : 0;
+  const isUp = totalProfit >= 0;
+  const color = isUp ? '#ff4d4f' : '#3fb950';
+  document.getElementById('totalCost').textContent = totalCost > 0 ? fmtY(totalCost) : '—';
+  document.getElementById('totalValue').textContent = totalCost > 0 ? fmtY(totalValue) : '—';
+  const pEl = document.getElementById('totalProfit');
+  pEl.textContent = totalCost > 0 ? (isUp?'+':'') + fmtY(totalProfit) : '—';
+  pEl.style.color = totalCost > 0 ? color : '';
+  const pctEl = document.getElementById('totalPct');
+  pctEl.textContent = totalCost > 0 ? (isUp?'+':'') + fmt(totalPct,2) + '%' : '—';
+  pctEl.style.color = totalCost > 0 ? color : '';
+
+  // ── 条形图 ──
+  const barEl = document.getElementById('barChart');
+  if (rows.length === 0) {
+    barEl.innerHTML = '<div style="text-align:center;color:#484f58;font-size:.8rem;padding:12px">暂无数据</div>';
+  } else {
+    barEl.innerHTML = rows.map(r => {
+      const w = maxPct > 0 ? Math.round(Math.abs(r.pct) / maxPct * 100) : 0;
+      const c = r.pct >= 0 ? '#ff4d4f' : '#3fb950';
+      const sign = r.pct >= 0 ? '+' : '';
+      return '<div class="bar-row">' +
+        '<span class="bl">' + r.code + '</span>' +
+        '<div class="bt"><div class="bf" style="width:' + w + '%;background:' + c + '"></div></div>' +
+        '<span class="bv" style="color:' + c + '">' + sign + fmt(r.pct,2) + '%</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  // ── 分组表 ──
+  const groups = {};
+  rows.forEach(r => {
+    const g = GROUP_LABELS[r.group] || r.group;
+    if (!groups[g]) groups[g] = [];
+    groups[g].push(r);
+  });
+
+  const tableEl = document.getElementById('fundTable');
+  if (rows.length === 0) {
+    tableEl.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#484f58;padding:24px">暂无数据，请点击「刷新数据」获取实时数据</td></tr>';
+  } else {
+    tableEl.innerHTML = Object.entries(groups).map(([gName, items]) => {
+      const rows2 = items.map(r => {
+        const pc = r.pct >= 0 ? '#ff4d4f' : '#3fb950';
+        const sc = r.profit >= 0 ? '#ff4d4f' : '#3fb950';
+        return '<tr>' +
+          '<td><span class="fc">' + r.code + '</span><br><small class="fname">' + r.name + '</small></td>' +
+          '<td class="r">' + fmtY(r.cost) + '</td>' +
+          '<td class="r num">' + fmt(r.shares,2) + '</td>' +
+          '<td class="r num">' + r.dwjz + '</td>' +
+          '<td class="r num bold" style="color:' + pc + '">' + r.gsz + '</td>' +
+          '<td class="r bold" style="color:' + pc + '">' + (r.pct>=0?'+':'') + fmt(r.pct,2) + '%</td>' +
+          '<td class="r bold" style="color:' + sc + '">' + (r.profit>=0?'+':'') + fmtY(r.profit) + '</td>' +
+          '<td class="r bold" style="color:' + pc + '">' + fmtY(r.curValue) + '</td>' +
+        '</tr>';
+      }).join('');
+      return '<tr class="group-header"><td colspan="8">' + gName + '</td></tr>' + rows2;
+    }).join('');
+  }
+
+  // ── 饼图 ──
+  const pieEl = document.getElementById('pieChart');
+  const legEl = document.getElementById('pieLegend');
+  if (rows.length === 0) {
+    pieEl.innerHTML = '<circle cx="110" cy="110" r="90" fill="rgba(255,255,255,.05)"/>' +
+      '<circle cx="110" cy="110" r="42" fill="#161b22"/>' +
+      '<text x="110" y="106" text-anchor="middle" fill="#484f58" font-size="11">暂无数据</text>';
+    legEl.innerHTML = '<div style="color:#484f58;font-size:.78rem;text-align:center;padding:12px">暂无数据</div>';
+  } else {
+    const cx = 110, cy = 110, r = 90;
+    let startAngle = -90;
+    const totalVal = totalCost;
+    let paths = [];
+    let legends = [];
+
+    rows.forEach(r => {
+      const angle = (r.cost / totalVal) * 360;
+      const endAngle = startAngle + angle;
+      const x1 = cx + r * Math.cos(startAngle * Math.PI / 180);
+      const y1 = cy + r * Math.sin(startAngle * Math.PI / 180);
+      const x2 = cx + r * Math.cos(endAngle * Math.PI / 180);
+      const y2 = cy + r * Math.sin(endAngle * Math.PI / 180);
+      const largeArc = angle > 180 ? 1 : 0;
+      const d = 'M' + cx + ',' + cy + ' L' + x1.toFixed(2) + ',' + y1.toFixed(2) + ' A' + r + ',' + r + ' 0 ' + largeArc + ',1 ' + x2.toFixed(2) + ',' + y2.toFixed(2) + ' Z';
+      paths.push('<path d="' + d + '" fill="' + r.color + '" opacity="0.85"/>');
+      const pct = (r.cost / totalVal * 100).toFixed(1);
+      legends.push('<div class="leg-item"><span class="leg-dot" style="background:' + r.color + '"></span><span class="leg-lbl">' + r.code + '</span><span class="leg-pct">' + pct + '%</span></div>');
+      startAngle = endAngle;
+    });
+
+    const costWan = (totalCost / 10000).toFixed(1);
+    pieEl.innerHTML = paths.join('') +
+      '<circle cx="' + cx + '" cy="' + cy + '" r="42" fill="#161b22"/>' +
+      '<text x="' + cx + '" y="106" text-anchor="middle" fill="#c9d1d9" font-size="11">总成本</text>' +
+      '<text x="' + cx + '" y="122" text-anchor="middle" fill="#58a6ff" font-size="12" font-weight="bold">¥' + costWan + '万</text>';
+    legEl.innerHTML = legends.join('');
+  }
+}
+
+function resetCountdown() {
+  cd = 300;
+  if (refreshTimer) clearInterval(refreshTimer);
+  if (countdownTimer) clearInterval(countdownTimer);
+  refreshTimer = setInterval(fetchAll, 5 * 60 * 1000);
+  countdownTimer = setInterval(() => {
+    cd--;
+    const m = String(Math.floor(cd / 60)).padStart(2, '0');
+    const s = String(cd % 60).padStart(2, '0');
+    document.getElementById('countdown').textContent = m + ':' + s + ' 后自动刷新';
+    if (cd <= 0) resetCountdown();
+  }, 1000);
+}
+
+// 首次：如果没有预填数据则主动拉取（同时立即启动倒计时显示）
+if (!hasInitData) {
+  // 立即显示倒计时（fetchAll 完成前先给用户反馈）
+  const m0 = String(Math.floor(300 / 60)).padStart(2, '0');
+  const s0 = String(300 % 60).padStart(2, '0');
+  const cdEl = document.getElementById('countdown');
+  if (cdEl) cdEl.textContent = m0 + ':' + s0 + ' 后自动刷新';
+  fetchAll();
+}
+</script>
+</body>
+</html>

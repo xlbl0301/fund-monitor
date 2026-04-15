@@ -289,8 +289,8 @@ function toggleEditMode() {
     editBtn.className   = 'btn btn-edit';
     saveBtn.style.display = 'inline-block';
     hint.innerHTML = '<em>编辑模式：直接修改成本后点「保存修改」</em>';
-    // 刷新一次（确保最新实时数据）
-    if (!hasInitData) fetchAll();
+    // 重新渲染表格，使成本列变为输入框
+    render();
   } else {
     editBtn.textContent = '✏️ 编辑成本';
     editBtn.className   = 'btn btn-edit';
@@ -327,7 +327,7 @@ function saveCostEdits() {
       if (overrides[f.code] !== undefined) f.cost = overrides[f.code];
     });
     saveCostOverrides(overrides);
-    showToast('✅ 成本已保存，刷新后生效');
+    showToast('✅ 成本已保存，页面已更新');
     editMode = false;
     document.getElementById('editBtn').textContent = '✏️ 编辑成本';
     document.getElementById('saveBtn').style.display = 'none';

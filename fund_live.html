@@ -165,6 +165,26 @@ td.edit-mode .cost-input{display:inline-block}
   font-size:.9rem;color:#58a6ff}
 .loading-overlay.hidden{display:none}
 
+/* ── 指数横幅 ── */
+.index-bar{
+  display:flex;gap:16px;justify-content:center;align-items:center;
+  flex-wrap:wrap;margin-top:10px;
+}
+.index-chip{
+  display:inline-flex;align-items:center;gap:7px;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+  border-radius:10px;padding:5px 13px;font-size:.8rem;
+  transition:border-color .3s;
+}
+.index-chip.up  {border-color:rgba(255,77,79,.4)}
+.index-chip.down{border-color:rgba(63,185,80,.4)}
+.idx-name{color:#8b949e;font-size:.72rem;white-space:nowrap}
+.idx-val {font-weight:700;font-family:monospace;color:#c9d1d9}
+.idx-pct {font-weight:700;font-size:.78rem;white-space:nowrap}
+.idx-pct.up  {color:#ff4d4f}
+.idx-pct.down{color:#3fb950}
+.idx-loading{color:#484f58;font-size:.75rem;font-style:italic}
+
 /* ── 底部 ── */
 .footer{text-align:center;font-size:.72rem;color:#484f58;margin-top:8px}
 
@@ -174,6 +194,7 @@ td.edit-mode .cost-input{display:inline-block}
   table{font-size:.76rem}
   td,th{padding:6px 5px}
   .cost-input{width:72px}
+  .index-chip{padding:4px 10px;font-size:.75rem}
 }
 </style>
 </head>
@@ -193,6 +214,10 @@ td.edit-mode .cost-input{display:inline-block}
 <div class="hd">
   <h1>📈 基金实时估值监控</h1>
   <div class="ts" id="updateTime">加载中…</div>
+  <!-- 指数横幅 -->
+  <div class="index-bar" id="indexBar">
+    <span class="idx-loading">指数加载中…</span>
+  </div>
   <div class="ctrl">
     <span id="liveIndicator" class="live-dot" title="自动刷新中"></span>
     <button class="btn btn-primary" id="refreshBtn" onclick="fetchAll()">🔄 刷新数据</button>
@@ -631,6 +656,118 @@ function fetchAllFunds() {
   return Promise.allSettled(FUNDS.map(f => fetchOneJSONP(f.code)));
 }
 
+// ══════════════════════════════════════════
+//  指数行情（上证/深证/创业板/纳斯达克）
+//  使用新浪财经 Hq 接口，支持跨域
+// ══════════════════════════════════════════
+const INDEX_LIST = [
+  { code: 's_sh000001', name: '上证指数' },
+  { code: 's_sz399001', name: '深证成指' },
+  { code: 's_sz399006', name: '创业板指' },
+  { code: 's_dj0002',   name: '纳斯达克' },
+];
+
+function fetchIndexData() {
+  const codes = INDEX_LIST.map(i => i.code).join(',');
+  const url   = 'https://hq.sinajs.cn/list=' + codes;
+  const script = document.createElement('script');
+  // 新浪 Hq 不是 JSONP，改用 iframe+proxy 方式不可靠，
+  // 改用 fetch no-cors 拿不到数据；最稳定的方案：
+  // 使用腾讯财经接口（jsonp 形式）
+  // 上证 sh000001, 深证 sz399001, 创业板 sz399006, 纳斯达克 usr_ixic
+  fetchIndexJSONP();
+}
+
+// 腾讯财经接口 JSONP
+const IDX_CODES = [
+  { code: 'sh000001', name: '上证指数' },
+  { code: 'sz399001', name: '深证成指' },
+  { code: 'sz399006', name: '创业板指' },
+  { code: 'usr_ixic', name: '纳斯达克' },
+];
+
+window._idxCallbacks = {};
+window._idxTimers    = {};
+
+function fetchOneIndex(code) {
+  return new Promise(resolve => {
+    const cbName = '_idx_' + code.replace(/[^a-z0-9]/gi, '_');
+    window._idxCallbacks[cbName] = resolve;
+    window._idxTimers[cbName] = setTimeout(() => {
+      delete window._idxCallbacks[cbName];
+      delete window._idxTimers[cbName];
+      const el = document.getElementById('idx_script_' + code);
+      if (el) el.remove();
+      resolve(null);
+    }, 8000);
+
+    const script = document.createElement('script');
+    script.id  = 'idx_script_' + code;
+    // 腾讯财经 pv.json 接口，返回 jQuery_xxx({...})，难以 JSONP 劫持
+    // 改用 「新浪财经快照」接口：直接 fetch 文本解析
+    // 但 fetch 跨域受限；最终可靠方案：
+    // 腾讯 Hq JSONP：http://qt.gtimg.cn/q=sh000001 返回 v_sh000001="...";
+    // 不是标准 JSONP，但可以嵌入 script 后用 eval 方式读取，
+    // 这里改为用 XHR + 代理或直接解析全局变量——
+    // 实际上腾讯 qt.gtimg.cn 允许跨域，可以 fetch
+    script.remove();
+    delete window._idxCallbacks[cbName];
+    clearTimeout(window._idxTimers[cbName]);
+    delete window._idxTimers[cbName];
+    resolve('NOJSONP');
+  });
+}
+
+// 腾讯 qt.gtimg.cn 允许跨域 fetch，直接解析
+async function fetchIndexJSONP() {
+  const codes = IDX_CODES.map(i => i.code).join(',');
+  const url   = 'https://qt.gtimg.cn/q=' + codes + '&r=' + Date.now();
+  try {
+    const res  = await fetch(url);
+    const text = await res.text();
+    // 格式：v_sh000001="1~上证指数~sh000001~3267.58~3265.76~3262.15~...";
+    const chips = [];
+    IDX_CODES.forEach(idx => {
+      const re  = new RegExp('v_' + idx.code + '="([^"]+)"');
+      const m   = text.match(re);
+      if (!m) return;
+      const parts = m[1].split('~');
+      // parts[3]=当前价, parts[4]=昨收, parts[32]=涨跌幅, parts[31]=涨跌额
+      const price  = parseFloat(parts[3]);
+      const close  = parseFloat(parts[4]);
+      const chgPct = parseFloat(parts[32]);
+      const chgAmt = parseFloat(parts[31]);
+      if (isNaN(price)) return;
+      chips.push({ name: idx.name, price, chgPct, chgAmt });
+    });
+    renderIndexBar(chips);
+  } catch(e) {
+    // 静默失败，不影响主体
+    const el = document.getElementById('indexBar');
+    if (el) el.innerHTML = '<span class="idx-loading">指数数据暂不可用</span>';
+  }
+}
+
+function renderIndexBar(chips) {
+  const el = document.getElementById('indexBar');
+  if (!el) return;
+  if (!chips || chips.length === 0) {
+    el.innerHTML = '<span class="idx-loading">指数数据暂不可用</span>';
+    return;
+  }
+  el.innerHTML = chips.map(c => {
+    const up    = c.chgPct >= 0;
+    const cls   = up ? 'up' : 'down';
+    const sign  = up ? '+' : '';
+    const arrow = up ? '▲' : '▼';
+    return '<span class="index-chip ' + cls + '">' +
+      '<span class="idx-name">' + c.name + '</span>' +
+      '<span class="idx-val">' + c.price.toFixed(2) + '</span>' +
+      '<span class="idx-pct ' + cls + '">' + arrow + ' ' + sign + c.chgPct.toFixed(2) + '%</span>' +
+    '</span>';
+  }).join('');
+}
+
 async function fetchAll() {
   const btn = document.getElementById('refreshBtn');
   if (btn && btn.disabled) return;
@@ -640,21 +777,27 @@ async function fetchAll() {
   const errEl = document.getElementById('errorMsg');
   if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
 
+  // 并行拉取：基金估值 + 指数
   let settled;
   try {
-    settled = await Promise.race([
-      fetchAllFunds(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 8000))
+    [settled] = await Promise.all([
+      Promise.race([
+        fetchAllFunds(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 8000))
+      ]),
+      fetchIndexJSONP(),
     ]);
   } catch(e) {
     settled = FUNDS.map(() => ({ status: 'rejected', reason: e }));
+    // 单独再试指数
+    fetchIndexJSONP();
   }
 
   const newFetched = Object.assign({}, fetched);
   const failed = [];
   for (let i = 0; i < FUNDS.length; i++) {
     const r = settled[i];
-    if (r.status === 'fulfilled' && r.value) {
+    if (r && r.status === 'fulfilled' && r.value) {
       newFetched[FUNDS[i].code] = r.value;
     } else if (!fetched[FUNDS[i].code]) {
       failed.push(FUNDS[i].code);
@@ -841,6 +984,7 @@ if (checkInitData()) {
   hasInitData = true;
   FUNDS.forEach(f => { fetched[f.code] = { gsz: f.gsz, dwjz: f.dwjz }; });
   render();
+  fetchIndexJSONP();   // 初始化时拉一次指数
   resetCountdown();
 } else {
   const cdEl = document.getElementById('countdown');

@@ -26,6 +26,53 @@ body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;
 .btn-save:hover{opacity:.85}
 .btn-hint{font-size:.72rem;color:#484f58}
 .btn-hint em{font-style:normal;color:#ffc53d}
+.btn-danger{background:#b31d1d;color:#fff}
+.btn-danger:hover{opacity:.85}
+.btn-add{background:#1a6c3f;color:#fff}
+.btn-add:hover{opacity:.85}
+.btn-add:disabled{opacity:.5;cursor:not-allowed}
+
+/* ── 基金管理面板 ── */
+#mgmtPanel{
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:12px;
+  padding:14px 18px;
+  margin-bottom:16px;
+  display:none;
+}
+#mgmtPanel.open{display:block}
+.mgmt-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.mgmt-label{font-size:.75rem;color:#8b949e;width:60px;flex-shrink:0}
+.mgmt-input{
+  flex:1;min-width:120px;max-width:200px;
+  background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.15);
+  border-radius:8px;color:#c9d1d9;
+  font-size:.82rem;padding:5px 10px;
+  font-family:monospace;outline:none;
+}
+.mgmt-input:focus{border-color:#58a6ff;background:rgba(88,166,255,.1)}
+.mgmt-input.invalid{border-color:#ff4d4f;background:rgba(255,77,77,.1)}
+.mgmt-hint{font-size:.72rem;color:#484f58;margin-top:-4px}
+.mgmt-hint em{color:#ffc53d;font-style:normal}
+.fund-tag{
+  display:inline-flex;align-items:center;gap:5px;
+  background:rgba(88,166,255,.12);border:1px solid rgba(88,166,255,.25);
+  border-radius:20px;padding:3px 10px 3px 12px;
+  font-size:.78rem;color:#c9d1d9;margin:3px;
+}
+.fund-tag-name{color:#8b949e;font-size:.7rem;margin-left:2px}
+.fund-tag-del{
+  cursor:pointer;color:#ff4d4f;font-size:.9rem;
+  width:18px;height:18px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(255,77,77,.1);
+  transition:background .15s;
+  border:none;font-family:inherit;padding:0;
+}
+.fund-tag-del:hover{background:rgba(255,77,77,.3)}
+.mgmt-divider{border:none;border-top:1px solid rgba(255,255,255,.08);margin:10px 0}
 .live-dot{width:8px;height:8px;border-radius:50%;background:#3fb950;
   display:inline-block;margin-right:4px;animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
@@ -151,8 +198,24 @@ td.edit-mode .cost-input{display:inline-block}
     <button class="btn btn-primary" id="refreshBtn" onclick="fetchAll()">🔄 刷新数据</button>
     <button class="btn btn-edit" id="editBtn" onclick="toggleEditMode()">✏️ 编辑成本</button>
     <button class="btn btn-save" id="saveBtn" onclick="saveCostEdits()" style="display:none">💾 保存修改</button>
+    <button class="btn" id="mgmtBtn" onclick="toggleMgmt()" style="background:#1d3557;color:#a8c8ff;border:1px solid rgba(88,166,255,.3)">⚙️ 管理基金</button>
     <span class="btn-hint" id="countdown">每5分钟自动刷新</span>
   </div>
+</div>
+
+<!-- 基金管理面板 -->
+<div id="mgmtPanel">
+  <div class="mgmt-row">
+    <span class="mgmt-label">基金编码</span>
+    <input class="mgmt-input" id="addCode" type="text" maxlength="6" placeholder="6位编码，如 110022"
+           oninput="this.value=this.value.replace(/\D/g,'').slice(0,6)">
+    <input class="mgmt-input" id="addCost" type="number" min="0" step="0.01" placeholder="持仓成本（元）">
+    <button class="btn btn-add" id="addBtn" onclick="addFund()">＋ 添加基金</button>
+  </div>
+  <div class="mgmt-hint" id="addHint">输入6位基金编码和持仓成本，自动拉取基金信息后添加到列表</div>
+  <hr class="mgmt-divider">
+  <div style="font-size:.75rem;color:#8b949e;margin-bottom:8px">当前持仓基金（点 × 删除）：</div>
+  <div id="fundTagList"><!-- JS填充 --></div>
 </div>
 
 <!-- 汇总 -->
@@ -217,10 +280,21 @@ td.edit-mode .cost-input{display:inline-block}
 
 <script>
 // ══════════════════════════════════════════
-//  持仓配置（gsz/dwjz 由 GitHub Actions 预填，
-//  cost = 用户手动成本，shares = 固定份额）
+//  localStorage keys
 // ══════════════════════════════════════════
-const FUNDS = [
+const LS_KEY        = 'fund_cost_overrides';
+const LS_FUNDS_KEY  = 'fund_custom_list';
+
+// 调色板（新增基金自动分配颜色）
+const COLOR_POOL = [
+  "#ff4d4f","#ff7a45","#ffc53d","#73d13d","#36cfc9",
+  "#40a9ff","#9254de","#f759ab","#bfbfbf","#d4b106",
+  "#ff85c2","#5cdbd3","#b37feb","#ffd666","#95de64",
+  "#69b1ff","#ff9c6e","#ff7875","#a0d911","#36cfc9",
+];
+
+// 默认持仓配置（Actions 预填了 gsz/dwjz）
+const DEFAULT_FUNDS = [
   {code:"008702",name:"华夏黄金ETF联接C",           cost:44076.21,gsz:"2.2469",dwjz:"2.2915",group:"黄金 & 贵金属",color:"#ff4d4f"},
   {code:"011036",name:"嘉实中证稀土产业ETF联接C",    cost:37545.90,gsz:"1.3286",dwjz:"1.3227",group:"稀土",         color:"#ff7a45"},
   {code:"014978",name:"华安纳斯达克100ETF联接(QDII)C",cost:11705.59,gsz:"6.9262",dwjz:"6.7408",group:"纳斯达克100",  color:"#ffc53d"},
@@ -233,15 +307,46 @@ const FUNDS = [
   {code:"016533",name:"嘉实纳斯达克100ETF发起联接(QDII)C",cost:282.39,gsz:"1.8465",dwjz:"1.7971",group:"纳斯达克100",color:"#d4b106"},
 ];
 
-let fetched   = {};
+// ══════════════════════════════════════════
+//  FUNDS 持久化（localStorage 优先，保留用户增删）
+// ══════════════════════════════════════════
+function loadFundList() {
+  try {
+    const raw = localStorage.getItem(LS_FUNDS_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw);
+      if (Array.isArray(saved) && saved.length > 0) {
+        // 用 Actions 预填的 gsz/dwjz 覆盖（保持实时数据）
+        return saved.map(sf => {
+          const df = DEFAULT_FUNDS.find(d => d.code === sf.code);
+          return df ? Object.assign({}, sf, {gsz: df.gsz, dwjz: df.dwjz}) : sf;
+        });
+      }
+    }
+  } catch(e) {}
+  return DEFAULT_FUNDS.map(f => Object.assign({}, f));
+}
+
+function saveFundList() {
+  try {
+    // 保存时去掉实时 gsz/dwjz（每次 Actions 更新）
+    const toSave = FUNDS.map(f => ({
+      code: f.code, name: f.name, cost: f.cost,
+      group: f.group, color: f.color
+    }));
+    localStorage.setItem(LS_FUNDS_KEY, JSON.stringify(toSave));
+  } catch(e) {}
+}
+
+// 运行时 FUNDS（可变）
+let FUNDS = loadFundList();
+
+let fetched         = {};
 let refreshTimer    = null;
 let countdownTimer  = null;
-let cd        = 300;
+let cd              = 300;
 let hasInitData     = false;
-let editMode = false;
-
-// localStorage key
-const LS_KEY = 'fund_cost_overrides';
+let editMode        = false;
 
 // ══════════════════════════════════════════
 //  localStorage：持久化用户修改的成本
@@ -257,7 +362,6 @@ function saveCostOverrides(overrides) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(overrides)); } catch(e) {}
 }
 
-// 加载用户修改的成本，合并到 FUNDS
 function applyCostOverrides() {
   const overrides = loadCostOverrides();
   FUNDS.forEach(f => {
@@ -265,45 +369,153 @@ function applyCostOverrides() {
   });
 }
 
-// 获取当前各基金有效成本（用于自动调仓脚本读取）
-function getCurrentCosts() {
-  const overrides = loadCostOverrides();
-  const result = {};
-  FUNDS.forEach(f => {
-    result[f.code] = overrides[f.code] !== undefined ? overrides[f.code] : f.cost;
-  });
-  return result;
+// ══════════════════════════════════════════
+//  基金管理面板
+// ══════════════════════════════════════════
+function toggleMgmt() {
+  const panel = document.getElementById('mgmtPanel');
+  panel.classList.toggle('open');
+  renderFundTags();
+}
+
+function renderFundTags() {
+  const el = document.getElementById('fundTagList');
+  if (!el) return;
+  if (FUNDS.length === 0) {
+    el.innerHTML = '<span style="color:#484f58;font-size:.75rem">暂无持仓基金</span>';
+    return;
+  }
+  el.innerHTML = FUNDS.map(f =>
+    '<span class="fund-tag">' +
+      '<span style="color:#58a6ff;font-weight:700">' + f.code + '</span>' +
+      '<span class="fund-tag-name">' + f.name.slice(0,8) + (f.name.length>8?'…':'') + '</span>' +
+      '<button class="fund-tag-del" onclick="deleteFund(\'' + f.code + '\')" title="删除">×</button>' +
+    '</span>'
+  ).join('');
+}
+
+// 添加基金
+async function addFund() {
+  const codeInput = document.getElementById('addCode');
+  const costInput = document.getElementById('addCost');
+  const hintEl    = document.getElementById('addHint');
+  const addBtn    = document.getElementById('addBtn');
+
+  const code = codeInput.value.trim();
+  const cost = parseFloat(costInput.value);
+
+  // 校验
+  if (!/^\d{6}$/.test(code)) {
+    codeInput.classList.add('invalid');
+    hintEl.innerHTML = '<em>⚠️ 请输入正确的6位基金编码</em>';
+    return;
+  }
+  codeInput.classList.remove('invalid');
+
+  if (isNaN(cost) || cost < 0) {
+    costInput.classList.add('invalid');
+    hintEl.innerHTML = '<em>⚠️ 请输入正确的持仓成本（元）</em>';
+    return;
+  }
+  costInput.classList.remove('invalid');
+
+  if (FUNDS.find(f => f.code === code)) {
+    hintEl.innerHTML = '<em>⚠️ 基金 ' + code + ' 已在列表中</em>';
+    return;
+  }
+
+  // 拉取基金信息
+  addBtn.disabled = true;
+  addBtn.textContent = '⏳ 查询中…';
+  hintEl.innerHTML = '正在拉取基金 ' + code + ' 的信息…';
+
+  try {
+    const data = await fetchOneJSONP(code);
+    if (!data || !data.name) {
+      hintEl.innerHTML = '<em>⚠️ 未找到基金 ' + code + '，请核对编码</em>';
+      addBtn.disabled = false; addBtn.textContent = '＋ 添加基金';
+      return;
+    }
+
+    // 分配颜色
+    const usedColors = new Set(FUNDS.map(f => f.color));
+    const color = COLOR_POOL.find(c => !usedColors.has(c)) || COLOR_POOL[FUNDS.length % COLOR_POOL.length];
+
+    const newFund = {
+      code:  data.fundcode || code,
+      name:  data.name,
+      cost:  cost,
+      gsz:   data.gsz  || data.dwjz || '0',
+      dwjz:  data.dwjz || data.gsz  || '0',
+      group: '自选基金',
+      color: color,
+    };
+
+    FUNDS.push(newFund);
+    fetched[newFund.code] = { gsz: newFund.gsz, dwjz: newFund.dwjz };
+
+    // 同步成本覆盖
+    const overrides = loadCostOverrides();
+    overrides[newFund.code] = cost;
+    saveCostOverrides(overrides);
+    saveFundList();
+
+    hintEl.innerHTML = '<em>✅ 已添加：' + newFund.name + '</em>';
+    codeInput.value = '';
+    costInput.value = '';
+    renderFundTags();
+    render();
+
+    showToast('✅ 已添加 ' + newFund.name);
+  } catch(e) {
+    hintEl.innerHTML = '<em>⚠️ 拉取失败，请检查网络后重试</em>';
+  }
+
+  addBtn.disabled = false;
+  addBtn.textContent = '＋ 添加基金';
+}
+
+// 删除基金
+function deleteFund(code) {
+  const f = FUNDS.find(f => f.code === code);
+  if (!f) return;
+  if (!confirm('确认删除基金 ' + code + '（' + f.name + '）？\n此操作不影响持仓成本记录，可重新添加。')) return;
+
+  FUNDS = FUNDS.filter(f => f.code !== code);
+  delete fetched[code];
+  saveFundList();
+
+  renderFundTags();
+  render();
+  showToast('🗑️ 已删除 ' + f.name);
 }
 
 // ══════════════════════════════════════════
-//  编辑模式
+//  编辑成本模式
 // ══════════════════════════════════════════
 function toggleEditMode() {
   editMode = !editMode;
-  const editBtn  = document.getElementById('editBtn');
-  const saveBtn  = document.getElementById('saveBtn');
-  const hint     = document.getElementById('countdown');
+  const editBtn = document.getElementById('editBtn');
+  const saveBtn = document.getElementById('saveBtn');
+  const hint    = document.getElementById('countdown');
 
   if (editMode) {
     editBtn.textContent = '❌ 取消编辑';
     editBtn.className   = 'btn btn-edit';
     saveBtn.style.display = 'inline-block';
     hint.innerHTML = '<em>编辑模式：直接修改成本后点「保存修改」</em>';
-    // 重新渲染表格，使成本列变为输入框
     render();
   } else {
     editBtn.textContent = '✏️ 编辑成本';
     editBtn.className   = 'btn btn-edit';
     saveBtn.style.display = 'none';
     hint.textContent   = '每5分钟自动刷新';
-    // 取消：重新加载页面数据
     applyCostOverrides();
     render();
   }
 }
 
 function saveCostEdits() {
-  // 收集所有输入框的值
   const overrides = loadCostOverrides();
   let changed = false;
 
@@ -322,11 +534,11 @@ function saveCostEdits() {
   });
 
   if (changed) {
-    // 同时更新 FUNDS 内存数据
     FUNDS.forEach(f => {
       if (overrides[f.code] !== undefined) f.cost = overrides[f.code];
     });
     saveCostOverrides(overrides);
+    saveFundList();
     showToast('✅ 成本已保存，页面已更新');
     editMode = false;
     document.getElementById('editBtn').textContent = '✏️ 编辑成本';
@@ -350,41 +562,23 @@ function showToast(msg, isError=false) {
   toastTimer = setTimeout(() => { el.className = ''; }, 3000);
 }
 
-// GROUP_LABELS
-const GROUP_LABELS = {
-  "黄金 & 贵金属": "黄金 & 贵金属",
-  "稀土": "稀土产业",
-  "纳斯达克100": "纳斯达克100",
-  "电网设备": "电网设备",
-};
-
-// 初始化：应用 localStorage 中的成本覆盖
-function checkInitData() {
-  const f = FUNDS[0];
-  return f && f.gsz && f.gsz !== '{{' && f.dwjz && f.dwjz !== '{{';
-}
-
-// ── 应用用户修改的成本（先于 render 调用）──
-applyCostOverrides();
-
-if (checkInitData()) {
-  hasInitData = true;
-  FUNDS.forEach(f => {
-    fetched[f.code] = { gsz: f.gsz, dwjz: f.dwjz };
-  });
-  render();
-  resetCountdown();
-} else {
-  resetCountdown();
-}
-
 // ══════════════════════════════════════════
 //  工具函数
 // ══════════════════════════════════════════
 function fmt(v, dec=2) { return Number(v).toFixed(dec); }
 function fmtY(v) { return '¥' + Number(v).toLocaleString('zh-CN',{minimumFractionDigits:2,maxFractionDigits:2}); }
 
-// 全局 JSONP 回调
+const GROUP_LABELS = {
+  "黄金 & 贵金属": "黄金 & 贵金属",
+  "稀土": "稀土产业",
+  "纳斯达克100": "纳斯达克100",
+  "电网设备": "电网设备",
+  "自选基金": "自选基金",
+};
+
+// ══════════════════════════════════════════
+//  JSONP 拉取
+// ══════════════════════════════════════════
 window._jsonpCallbacks = {};
 window._jsonpTimers    = {};
 window.jsonpgz = function(data) {
@@ -412,7 +606,7 @@ function fetchOneJSONP(code) {
     }, 10000);
 
     const script = document.createElement('script');
-    script.id = 'jsonp_script_' + code;
+    script.id  = 'jsonp_script_' + code;
     script.src = 'https://fundgz.1234567.com.cn/js/' + code + '.js?rt=' + Date.now();
     script.onerror = function() {
       clearTimeout(window._jsonpTimers[code]);
@@ -446,7 +640,6 @@ async function fetchAll() {
   const errEl = document.getElementById('errorMsg');
   if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
 
-  const t0 = Date.now();
   let settled;
   try {
     settled = await Promise.race([
@@ -454,18 +647,15 @@ async function fetchAll() {
       new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 8000))
     ]);
   } catch(e) {
-    settled = FUNDS.map((_, i) => ({ status: 'rejected', reason: e }));
+    settled = FUNDS.map(() => ({ status: 'rejected', reason: e }));
   }
 
-  // 增量合并，不清空旧数据
   const newFetched = Object.assign({}, fetched);
   const failed = [];
-  let ok = 0;
   for (let i = 0; i < FUNDS.length; i++) {
     const r = settled[i];
     if (r.status === 'fulfilled' && r.value) {
       newFetched[FUNDS[i].code] = r.value;
-      ok++;
     } else if (!fetched[FUNDS[i].code]) {
       failed.push(FUNDS[i].code);
     }
@@ -496,23 +686,19 @@ function render() {
     String(now.getSeconds()).padStart(2,'0') + ' · 数据来源：天天基金';
 
   let totalCost = 0, totalValue = 0, totalProfit = 0;
-  let rows = [];
-  let maxPct = 0;
+  let rows = [], maxPct = 0;
 
-  // 用 FUNDS 当前数据（已含 localStorage 覆盖）计算
   FUNDS.forEach(f => {
     const d = fetched[f.code];
     if (!d) return;
-    const gsz   = parseFloat(d.gsz);
-    const dwjz  = parseFloat(d.dwjz);
-    if (isNaN(gsz) || isNaN(dwjz)) return;
-    // shares 按 份额 = 成本/昨收 推算（展示用）
-    const shares  = f.cost / dwjz;
-    const curValue= shares * gsz;
-    const profit = curValue - f.cost;
-    const pct     = (gsz - dwjz) / dwjz * 100;
+    const gsz  = parseFloat(d.gsz);
+    const dwjz = parseFloat(d.dwjz);
+    if (isNaN(gsz) || isNaN(dwjz) || dwjz === 0) return;
+    const shares   = f.cost / dwjz;
+    const curValue = shares * gsz;
+    const profit   = curValue - f.cost;
+    const pct      = (gsz - dwjz) / dwjz * 100;
     if (Math.abs(pct) > maxPct) maxPct = Math.abs(pct);
-
     totalCost   += f.cost;
     totalValue  += curValue;
     totalProfit += profit;
@@ -521,14 +707,14 @@ function render() {
 
   // ── 总览 ──
   const totalPct = totalCost > 0 ? (totalValue - totalCost) / totalCost * 100 : 0;
-  const isUp     = totalProfit >= 0;
-  const color    = isUp ? '#ff4d4f' : '#3fb950';
+  const isUp  = totalProfit >= 0;
+  const color = isUp ? '#ff4d4f' : '#3fb950';
   const setEl = (id, val, clr) => {
     const el = document.getElementById(id);
     if (el) { el.textContent = val; if (clr) el.style.color = clr; }
   };
-  setEl('totalCost',   totalCost > 0 ? fmtY(totalCost) : '—');
-  setEl('totalValue',  totalCost > 0 ? fmtY(totalValue) : '—');
+  setEl('totalCost',   totalCost > 0 ? fmtY(totalCost)   : '—');
+  setEl('totalValue',  totalCost > 0 ? fmtY(totalValue)  : '—');
   setEl('totalProfit', totalCost > 0 ? (isUp?'+':'') + fmtY(totalProfit) : '—', color);
   setEl('totalPct',    totalCost > 0 ? (isUp?'+':'') + fmt(totalPct,2) + '%' : '—', color);
 
@@ -538,8 +724,8 @@ function render() {
     barEl.innerHTML = '<div style="text-align:center;color:#484f58;font-size:.8rem;padding:12px">暂无数据</div>';
   } else {
     barEl.innerHTML = rows.map(r => {
-      const w    = maxPct > 0 ? Math.round(Math.abs(r.pct) / maxPct * 100) : 0;
-      const c    = r.pct >= 0 ? '#ff4d4f' : '#3fb950';
+      const w = maxPct > 0 ? Math.round(Math.abs(r.pct) / maxPct * 100) : 0;
+      const c = r.pct >= 0 ? '#ff4d4f' : '#3fb950';
       return '<div class="bar-row">' +
         '<span class="bl">' + r.code + '</span>' +
         '<div class="bt"><div class="bf" style="width:' + w + '%;background:' + c + '"></div></div>' +
@@ -558,11 +744,10 @@ function render() {
 
   const tableEl = document.getElementById('fundTable');
   if (rows.length === 0) {
-    tableEl.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#484f58;padding:24px">暂无数据，请点击「刷新数据」获取实时数据</td></tr>';
+    tableEl.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#484f58;padding:24px">暂无数据，请点击「刷新数据」</td></tr>';
     return;
   }
 
-  // 构建表格行（编辑模式下成本列改为输入框）
   function buildCostCell(f) {
     if (editMode) {
       return '<td class="r edit-mode">' +
@@ -571,9 +756,8 @@ function render() {
                'data-code="' + f.code + '" value="' + f.cost.toFixed(2) + '" ' +
                'onblur="validateInput(this)">' +
         '</td>';
-    } else {
-      return '<td class="r"><span class="cost-static">' + fmtY(f.cost) + '</span></td>';
     }
+    return '<td class="r"><span class="cost-static">' + fmtY(f.cost) + '</span></td>';
   }
 
   tableEl.innerHTML = Object.entries(groups).map(([gName, items]) => {
@@ -597,19 +781,19 @@ function render() {
   // ── 饼图 ──
   const pieEl = document.getElementById('pieChart');
   const legEl = document.getElementById('pieLegend');
-  const cx = 110, cy = 110, r = 90;
+  const cx = 110, cy = 110, radius = 90;
   let startAngle = -90;
   let paths = [], legends = [];
 
   rows.forEach(row => {
     const angle = (row.cost / totalCost) * 360;
     const endA  = startAngle + angle;
-    const x1 = (cx + r * Math.cos(startAngle * Math.PI / 180)).toFixed(2);
-    const y1 = (cy + r * Math.sin(startAngle * Math.PI / 180)).toFixed(2);
-    const x2 = (cx + r * Math.cos(endA * Math.PI / 180)).toFixed(2);
-    const y2 = (cy + r * Math.sin(endA * Math.PI / 180)).toFixed(2);
+    const x1 = (cx + radius * Math.cos(startAngle * Math.PI / 180)).toFixed(2);
+    const y1 = (cy + radius * Math.sin(startAngle * Math.PI / 180)).toFixed(2);
+    const x2 = (cx + radius * Math.cos(endA * Math.PI / 180)).toFixed(2);
+    const y2 = (cy + radius * Math.sin(endA * Math.PI / 180)).toFixed(2);
     const largeArc = angle > 180 ? 1 : 0;
-    const d = 'M' + cx + ',' + cy + ' L' + x1 + ',' + y1 + ' A' + r + ',' + r + ' 0 ' + largeArc + ',1 ' + x2 + ',' + y2 + ' Z';
+    const d = 'M' + cx + ',' + cy + ' L' + x1 + ',' + y1 + ' A' + radius + ',' + radius + ' 0 ' + largeArc + ',1 ' + x2 + ',' + y2 + ' Z';
     paths.push('<path d="' + d + '" fill="' + row.color + '" opacity="0.85"/>');
     const pct = (row.cost / totalCost * 100).toFixed(1);
     legends.push('<div class="leg-item"><span class="leg-dot" style="background:' + row.color + '"></span><span class="leg-lbl">' + row.code + '</span><span class="leg-pct">' + pct + '%</span></div>');
@@ -624,7 +808,6 @@ function render() {
   legEl.innerHTML = legends.join('');
 }
 
-// 实时验证输入（oninput）
 function validateInput(input) {
   const v = parseFloat(input.value);
   input.classList.toggle('invalid', isNaN(v) || v < 0);
@@ -646,13 +829,24 @@ function resetCountdown() {
   }, 1000);
 }
 
-// 首次无预填数据则主动拉取
-if (!hasInitData) {
-  const m0 = String(Math.floor(300 / 60)).padStart(2, '0');
-  const s0 = String(300 % 60).padStart(2, '0');
+// ── 初始化 ──
+applyCostOverrides();
+
+function checkInitData() {
+  const f = FUNDS[0];
+  return f && f.gsz && f.gsz !== '{{' && f.dwjz && f.dwjz !== '{{';
+}
+
+if (checkInitData()) {
+  hasInitData = true;
+  FUNDS.forEach(f => { fetched[f.code] = { gsz: f.gsz, dwjz: f.dwjz }; });
+  render();
+  resetCountdown();
+} else {
   const cdEl = document.getElementById('countdown');
-  if (cdEl) cdEl.textContent = m0 + ':' + s0 + ' 后自动刷新';
+  if (cdEl) cdEl.textContent = '05:00 后自动刷新';
   fetchAll();
+  resetCountdown();
 }
 </script>
 </body>

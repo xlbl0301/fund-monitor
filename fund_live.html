@@ -185,6 +185,21 @@ td.edit-mode .cost-input{display:inline-block}
 .idx-pct.down{color:#3fb950}
 .idx-loading{color:#484f58;font-size:.75rem;font-style:italic}
 
+/* ── 云同步状态 ── */
+#syncStatus{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:.72rem;padding:3px 10px;border-radius:20px;
+  border:1px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.04);color:#8b949e;
+  transition:all .3s;
+}
+#syncStatus.syncing{color:#ffc53d;border-color:rgba(255,197,61,.3);background:rgba(255,197,61,.05)}
+#syncStatus.ok     {color:#3fb950;border-color:rgba(63,185,80,.3);background:rgba(63,185,80,.05)}
+#syncStatus.error  {color:#ff4d4f;border-color:rgba(255,77,77,.3);background:rgba(255,77,77,.05)}
+#syncStatus.loading{color:#58a6ff;border-color:rgba(88,166,255,.3);background:rgba(88,166,255,.05)}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+#syncStatus.syncing .sync-dot{animation:pulse 1s infinite}
+
 /* ── 底部 ── */
 .footer{text-align:center;font-size:.72rem;color:#484f58;margin-top:8px}
 
@@ -224,6 +239,7 @@ td.edit-mode .cost-input{display:inline-block}
     <button class="btn btn-edit" id="editBtn" onclick="toggleEditMode()">✏️ 编辑成本</button>
     <button class="btn btn-save" id="saveBtn" onclick="saveCostEdits()" style="display:none">💾 保存修改</button>
     <button class="btn" id="mgmtBtn" onclick="toggleMgmt()" style="background:#1d3557;color:#a8c8ff;border:1px solid rgba(88,166,255,.3)">⚙️ 管理基金</button>
+    <div id="syncStatus" class="loading"><span class="sync-dot"></span><span id="syncText">云端加载中…</span></div>
     <span class="btn-hint" id="countdown">每5分钟自动刷新</span>
   </div>
 </div>
@@ -241,6 +257,18 @@ td.edit-mode .cost-input{display:inline-block}
   <hr class="mgmt-divider">
   <div style="font-size:.75rem;color:#8b949e;margin-bottom:8px">当前持仓基金（点 × 删除）：</div>
   <div id="fundTagList"><!-- JS填充 --></div>
+  <hr class="mgmt-divider">
+  <!-- 云同步 Token 配置 -->
+  <div style="font-size:.75rem;color:#8b949e;margin-bottom:8px">☁️ 云同步配置（跨设备数据同步）：</div>
+  <div class="mgmt-row">
+    <span class="mgmt-label">GitHub Token</span>
+    <input class="mgmt-input" id="tokenInput" type="password"
+           style="max-width:280px;font-family:monospace"
+           placeholder="ghp_xxxxxxxxxx（留空则禁用云同步写入）">
+    <button class="btn btn-save" onclick="saveToken()">保存Token</button>
+    <button class="btn btn-danger" onclick="clearToken()" style="font-size:.75rem;padding:5px 10px">清除</button>
+  </div>
+  <div class="mgmt-hint" id="tokenHint">Token 仅存本地浏览器，不上传到 GitHub。用于保存成本到云端，所有设备刷新后同步</div>
 </div>
 
 <!-- 汇总 -->
@@ -305,7 +333,20 @@ td.edit-mode .cost-input{display:inline-block}
 
 <script>
 // ══════════════════════════════════════════
-//  localStorage keys
+//  GitHub 云同步配置
+// ══════════════════════════════════════════
+const GH_OWNER  = 'xlbl0301';
+const GH_REPO   = 'fund-monitor';
+const GH_FILE   = 'user_data.json';
+const LS_TOKEN_KEY = 'gh_sync_token';
+function getToken() { return localStorage.getItem(LS_TOKEN_KEY) || ''; }
+// GitHub Raw 读取（无鉴权，CDN 有 ~30s 缓存，加 ?t= 绕过）
+const GH_RAW    = 'https://raw.githubusercontent.com/' + GH_OWNER + '/' + GH_REPO + '/main/' + GH_FILE;
+// GitHub API 写入
+const GH_API    = 'https://api.github.com/repos/' + GH_OWNER + '/' + GH_REPO + '/contents/' + GH_FILE;
+
+// ══════════════════════════════════════════
+//  localStorage keys（仅作本地 fallback）
 // ══════════════════════════════════════════
 const LS_KEY        = 'fund_cost_overrides';
 const LS_FUNDS_KEY  = 'fund_custom_list';
@@ -318,7 +359,7 @@ const COLOR_POOL = [
   "#69b1ff","#ff9c6e","#ff7875","#a0d911","#36cfc9",
 ];
 
-// 默认持仓配置（Actions 预填了 gsz/dwjz）
+// 默认持仓配置（Actions 预填了 gsz/dwjz；云端加载成功后会被覆盖）
 const DEFAULT_FUNDS = [
   {code:"008702",name:"华夏黄金ETF联接C",           cost:44076.21,gsz:"2.2469",dwjz:"2.2915",group:"黄金 & 贵金属",color:"#ff4d4f"},
   {code:"011036",name:"嘉实中证稀土产业ETF联接C",    cost:37545.90,gsz:"1.3286",dwjz:"1.3227",group:"稀土",         color:"#ff7a45"},
@@ -333,15 +374,164 @@ const DEFAULT_FUNDS = [
 ];
 
 // ══════════════════════════════════════════
-//  FUNDS 持久化（localStorage 优先，保留用户增删）
+//  云同步状态 UI
 // ══════════════════════════════════════════
-function loadFundList() {
+function setSyncStatus(state, text) {
+  const el = document.getElementById('syncStatus');
+  const tx = document.getElementById('syncText');
+  if (!el || !tx) return;
+  el.className = state;  // loading | syncing | ok | error
+  tx.textContent = text;
+}
+
+// ══════════════════════════════════════════
+//  GitHub 读取 user_data.json（Raw CDN）
+// ══════════════════════════════════════════
+let _ghFileSha = '';  // 记录文件 SHA，写入时需要
+
+async function loadCloudData() {
+  setSyncStatus('loading', '云端加载中…');
+  try {
+    // 加时间戳绕过 CDN 缓存
+    const res = await fetch(GH_RAW + '?t=' + Date.now());
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (!Array.isArray(data.funds) || data.funds.length === 0) throw new Error('empty');
+
+    // 成功：用云端数据覆盖 FUNDS（保留 gsz/dwjz 来自 DEFAULT_FUNDS/Actions）
+    FUNDS = data.funds.map(cf => {
+      const df = DEFAULT_FUNDS.find(d => d.code === cf.code);
+      return Object.assign({}, cf, {
+        gsz:  df ? df.gsz  : (cf.gsz  || '0'),
+        dwjz: df ? df.dwjz : (cf.dwjz || '0'),
+      });
+    });
+
+    setSyncStatus('ok', '云端已同步 · ' + (data.updatedAt ? data.updatedAt.slice(5,16) : ''));
+
+    // 同时获取文件 SHA（用于后续写入）
+    fetchGhFileSha();
+    return true;
+  } catch(e) {
+    setSyncStatus('error', '云端不可用，使用本地');
+    // fallback：localStorage
+    FUNDS = loadFundList_local();
+    fetchGhFileSha();  // 仍尝试获取 SHA
+    return false;
+  }
+}
+
+// 获取文件 SHA（写入时需要）
+async function fetchGhFileSha() {
+  try {
+    const res = await fetch(GH_API, {
+      headers: { 'Authorization': 'token ' + getToken() }
+    });
+    if (!res.ok) return;
+    const d = await res.json();
+    _ghFileSha = d.sha || '';
+  } catch(e) {}
+}
+
+// ══════════════════════════════════════════
+//  GitHub 写入 user_data.json
+// ══════════════════════════════════════════
+async function saveCloudData(showMsg = true) {
+  const token = getToken();
+  if (!token) {
+    // 无 Token：仅本地保存
+    saveFundList_local();
+    setSyncStatus('error', '未配置Token，仅本地');
+    if (showMsg) showToast('⚠️ 未配置 GitHub Token，修改仅存本地。\n请在「⚙️ 管理基金」中配置 Token 以启用云同步', true);
+    return;
+  }
+
+  setSyncStatus('syncing', '同步中…');
+
+  // 构造要保存的数据（去掉实时 gsz/dwjz）
+  const now = new Date();
+  const ts  = now.getFullYear() + '-' +
+    String(now.getMonth()+1).padStart(2,'0') + '-' +
+    String(now.getDate()).padStart(2,'0') + ' ' +
+    String(now.getHours()).padStart(2,'0') + ':' +
+    String(now.getMinutes()).padStart(2,'0');
+
+  const payload = {
+    version: 1,
+    updatedAt: ts,
+    funds: FUNDS.map(f => ({
+      code:  f.code,
+      name:  f.name,
+      cost:  f.cost,
+      group: f.group,
+      color: f.color,
+    }))
+  };
+
+  const jsonStr = JSON.stringify(payload, null, 2);
+  const b64 = btoa(unescape(encodeURIComponent(jsonStr)));
+
+  const body = {
+    message: 'update user_data.json ' + ts,
+    content: b64,
+  };
+  if (_ghFileSha) body.sha = _ghFileSha;
+
+  try {
+    const res = await fetch(GH_API, {
+      method:  'PUT',
+      headers: {
+        'Authorization': 'token ' + getToken(),
+        'Content-Type':  'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      // SHA 冲突：重新获取 SHA 后重试一次
+      if (res.status === 409 || (errData.message && errData.message.includes('sha'))) {
+        await fetchGhFileSha();
+        if (_ghFileSha) {
+          body.sha = _ghFileSha;
+          const res2 = await fetch(GH_API, {
+            method: 'PUT',
+            headers: { 'Authorization': 'token ' + getToken(), 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          if (!res2.ok) throw new Error('retry failed ' + res2.status);
+          const d2 = await res2.json();
+          _ghFileSha = d2.content && d2.content.sha ? d2.content.sha : _ghFileSha;
+        }
+      } else {
+        throw new Error('HTTP ' + res.status);
+      }
+    } else {
+      const d = await res.json();
+      _ghFileSha = d.content && d.content.sha ? d.content.sha : _ghFileSha;
+    }
+
+    // 同时存本地 fallback
+    saveFundList_local();
+
+    setSyncStatus('ok', '已同步到云端 · ' + ts.slice(5));
+    if (showMsg) showToast('✅ 已同步到云端，所有设备即时生效');
+  } catch(e) {
+    setSyncStatus('error', '云端写入失败，已存本地');
+    saveFundList_local();
+    if (showMsg) showToast('⚠️ 云端写入失败，修改已存本地', true);
+  }
+}
+
+// ══════════════════════════════════════════
+//  本地 localStorage（仅 fallback）
+// ══════════════════════════════════════════
+function loadFundList_local() {
   try {
     const raw = localStorage.getItem(LS_FUNDS_KEY);
     if (raw) {
       const saved = JSON.parse(raw);
       if (Array.isArray(saved) && saved.length > 0) {
-        // 用 Actions 预填的 gsz/dwjz 覆盖（保持实时数据）
         return saved.map(sf => {
           const df = DEFAULT_FUNDS.find(d => d.code === sf.code);
           return df ? Object.assign({}, sf, {gsz: df.gsz, dwjz: df.dwjz}) : sf;
@@ -352,9 +542,8 @@ function loadFundList() {
   return DEFAULT_FUNDS.map(f => Object.assign({}, f));
 }
 
-function saveFundList() {
+function saveFundList_local() {
   try {
-    // 保存时去掉实时 gsz/dwjz（每次 Actions 更新）
     const toSave = FUNDS.map(f => ({
       code: f.code, name: f.name, cost: f.cost,
       group: f.group, color: f.color
@@ -363,8 +552,11 @@ function saveFundList() {
   } catch(e) {}
 }
 
-// 运行时 FUNDS（可变）
-let FUNDS = loadFundList();
+// 兼容旧接口名
+function saveFundList() { saveFundList_local(); }
+
+// 运行时 FUNDS（初始用 DEFAULT，loadCloudData 后会覆盖）
+let FUNDS = DEFAULT_FUNDS.map(f => Object.assign({}, f));
 
 let fetched         = {};
 let refreshTimer    = null;
@@ -374,7 +566,7 @@ let hasInitData     = false;
 let editMode        = false;
 
 // ══════════════════════════════════════════
-//  localStorage：持久化用户修改的成本
+//  localStorage：持久化用户修改的成本（保留，兼容）
 // ══════════════════════════════════════════
 function loadCostOverrides() {
   try {
@@ -401,6 +593,44 @@ function toggleMgmt() {
   const panel = document.getElementById('mgmtPanel');
   panel.classList.toggle('open');
   renderFundTags();
+  // 显示 Token 状态
+  const tokenInput = document.getElementById('tokenInput');
+  const tokenHint  = document.getElementById('tokenHint');
+  if (tokenInput) {
+    const tok = getToken();
+    tokenInput.value = tok ? tok : '';
+    if (tokenHint) {
+      tokenHint.innerHTML = tok
+        ? '<em style="color:#3fb950">✅ 已配置Token（' + tok.slice(0,8) + '…），云同步已启用</em>'
+        : 'Token 仅存本地浏览器，不上传到 GitHub。用于保存成本到云端，所有设备刷新后同步';
+    }
+  }
+}
+
+function saveToken() {
+  const input = document.getElementById('tokenInput');
+  const hint  = document.getElementById('tokenHint');
+  const val   = (input ? input.value.trim() : '');
+  if (val && !/^ghp_/.test(val) && !/^github_pat_/.test(val)) {
+    if (hint) hint.innerHTML = '<em style="color:#ff4d4f">⚠️ Token 格式不正确，应以 ghp_ 开头</em>';
+    return;
+  }
+  localStorage.setItem(LS_TOKEN_KEY, val);
+  if (hint) hint.innerHTML = val
+    ? '<em style="color:#3fb950">✅ Token 已保存（' + val.slice(0,8) + '…），云同步已启用</em>'
+    : '<em style="color:#8b949e">Token 已清空，云同步写入已禁用</em>';
+  showToast(val ? '✅ Token 已保存，云同步已启用' : '⚠️ Token 已清空');
+  // 立即尝试同步一次
+  if (val) fetchGhFileSha();
+}
+
+function clearToken() {
+  localStorage.removeItem(LS_TOKEN_KEY);
+  const input = document.getElementById('tokenInput');
+  const hint  = document.getElementById('tokenHint');
+  if (input) input.value = '';
+  if (hint) hint.innerHTML = '<em style="color:#8b949e">Token 已清空，云同步写入已禁用（仍可读取云端数据）</em>';
+  showToast('Token 已清空');
 }
 
 function renderFundTags() {
@@ -479,19 +709,16 @@ async function addFund() {
     FUNDS.push(newFund);
     fetched[newFund.code] = { gsz: newFund.gsz, dwjz: newFund.dwjz };
 
-    // 同步成本覆盖
-    const overrides = loadCostOverrides();
-    overrides[newFund.code] = cost;
-    saveCostOverrides(overrides);
-    saveFundList();
-
-    hintEl.innerHTML = '<em>✅ 已添加：' + newFund.name + '</em>';
+    hintEl.innerHTML = '<em>✅ 已添加：' + newFund.name + ' · 同步中…</em>';
     codeInput.value = '';
     costInput.value = '';
     renderFundTags();
     render();
 
-    showToast('✅ 已添加 ' + newFund.name);
+    // 云端同步
+    await saveCloudData(false);
+    hintEl.innerHTML = '<em>✅ 已添加并同步：' + newFund.name + '</em>';
+    showToast('✅ 已添加 ' + newFund.name + '，云端同步完成');
   } catch(e) {
     hintEl.innerHTML = '<em>⚠️ 拉取失败，请检查网络后重试</em>';
   }
@@ -501,18 +728,20 @@ async function addFund() {
 }
 
 // 删除基金
-function deleteFund(code) {
+async function deleteFund(code) {
   const f = FUNDS.find(f => f.code === code);
   if (!f) return;
   if (!confirm('确认删除基金 ' + code + '（' + f.name + '）？\n此操作不影响持仓成本记录，可重新添加。')) return;
 
   FUNDS = FUNDS.filter(f => f.code !== code);
   delete fetched[code];
-  saveFundList();
 
   renderFundTags();
   render();
-  showToast('🗑️ 已删除 ' + f.name);
+
+  // 云端同步
+  await saveCloudData(false);
+  showToast('🗑️ 已删除 ' + f.name + '，云端同步完成');
 }
 
 // ══════════════════════════════════════════
@@ -540,16 +769,16 @@ function toggleEditMode() {
   }
 }
 
-function saveCostEdits() {
-  const overrides = loadCostOverrides();
+async function saveCostEdits() {
   let changed = false;
 
   document.querySelectorAll('.cost-input').forEach(input => {
     const code = input.dataset.code;
     const val  = parseFloat(input.value);
     if (!isNaN(val) && val >= 0) {
-      if (overrides[code] !== val) {
-        overrides[code] = val;
+      const fund = FUNDS.find(f => f.code === code);
+      if (fund && fund.cost !== val) {
+        fund.cost = val;
         changed = true;
       }
       input.classList.remove('invalid');
@@ -559,17 +788,14 @@ function saveCostEdits() {
   });
 
   if (changed) {
-    FUNDS.forEach(f => {
-      if (overrides[f.code] !== undefined) f.cost = overrides[f.code];
-    });
-    saveCostOverrides(overrides);
-    saveFundList();
-    showToast('✅ 成本已保存，页面已更新');
     editMode = false;
     document.getElementById('editBtn').textContent = '✏️ 编辑成本';
     document.getElementById('saveBtn').style.display = 'none';
     document.getElementById('countdown').textContent = '每5分钟自动刷新';
     render();
+
+    // 云端同步（含 toast 提示）
+    await saveCloudData(true);
   } else {
     showToast('⚠️ 未检测到有效变化', true);
   }
@@ -658,65 +884,13 @@ function fetchAllFunds() {
 
 // ══════════════════════════════════════════
 //  指数行情（上证/深证/创业板/纳斯达克）
-//  使用新浪财经 Hq 接口，支持跨域
 // ══════════════════════════════════════════
-const INDEX_LIST = [
-  { code: 's_sh000001', name: '上证指数' },
-  { code: 's_sz399001', name: '深证成指' },
-  { code: 's_sz399006', name: '创业板指' },
-  { code: 's_dj0002',   name: '纳斯达克' },
-];
-
-function fetchIndexData() {
-  const codes = INDEX_LIST.map(i => i.code).join(',');
-  const url   = 'https://hq.sinajs.cn/list=' + codes;
-  const script = document.createElement('script');
-  // 新浪 Hq 不是 JSONP，改用 iframe+proxy 方式不可靠，
-  // 改用 fetch no-cors 拿不到数据；最稳定的方案：
-  // 使用腾讯财经接口（jsonp 形式）
-  // 上证 sh000001, 深证 sz399001, 创业板 sz399006, 纳斯达克 usr_ixic
-  fetchIndexJSONP();
-}
-
-// 腾讯财经接口 JSONP
 const IDX_CODES = [
   { code: 'sh000001', name: '上证指数' },
   { code: 'sz399001', name: '深证成指' },
   { code: 'sz399006', name: '创业板指' },
   { code: 'usr_ixic', name: '纳斯达克' },
 ];
-
-window._idxCallbacks = {};
-window._idxTimers    = {};
-
-function fetchOneIndex(code) {
-  return new Promise(resolve => {
-    const cbName = '_idx_' + code.replace(/[^a-z0-9]/gi, '_');
-    window._idxCallbacks[cbName] = resolve;
-    window._idxTimers[cbName] = setTimeout(() => {
-      delete window._idxCallbacks[cbName];
-      delete window._idxTimers[cbName];
-      const el = document.getElementById('idx_script_' + code);
-      if (el) el.remove();
-      resolve(null);
-    }, 8000);
-
-    const script = document.createElement('script');
-    script.id  = 'idx_script_' + code;
-    // 腾讯财经 pv.json 接口，返回 jQuery_xxx({...})，难以 JSONP 劫持
-    // 改用 「新浪财经快照」接口：直接 fetch 文本解析
-    // 但 fetch 跨域受限；最终可靠方案：
-    // 腾讯 Hq JSONP：http://qt.gtimg.cn/q=sh000001 返回 v_sh000001="...";
-    // 不是标准 JSONP，但可以嵌入 script 后用 eval 方式读取，
-    // 这里改为用 XHR + 代理或直接解析全局变量——
-    // 实际上腾讯 qt.gtimg.cn 允许跨域，可以 fetch
-    script.remove();
-    delete window._idxCallbacks[cbName];
-    clearTimeout(window._idxTimers[cbName]);
-    delete window._idxTimers[cbName];
-    resolve('NOJSONP');
-  });
-}
 
 // 腾讯 qt.gtimg.cn 允许跨域 fetch，直接解析
 async function fetchIndexJSONP() {
@@ -725,14 +899,12 @@ async function fetchIndexJSONP() {
   try {
     const res  = await fetch(url);
     const text = await res.text();
-    // 格式：v_sh000001="1~上证指数~sh000001~3267.58~3265.76~3262.15~...";
     const chips = [];
     IDX_CODES.forEach(idx => {
       const re  = new RegExp('v_' + idx.code + '="([^"]+)"');
       const m   = text.match(re);
       if (!m) return;
       const parts = m[1].split('~');
-      // parts[3]=当前价, parts[4]=昨收, parts[32]=涨跌幅, parts[31]=涨跌额
       const price  = parseFloat(parts[3]);
       const close  = parseFloat(parts[4]);
       const chgPct = parseFloat(parts[32]);
@@ -742,7 +914,6 @@ async function fetchIndexJSONP() {
     });
     renderIndexBar(chips);
   } catch(e) {
-    // 静默失败，不影响主体
     const el = document.getElementById('indexBar');
     if (el) el.innerHTML = '<span class="idx-loading">指数数据暂不可用</span>';
   }
@@ -777,7 +948,6 @@ async function fetchAll() {
   const errEl = document.getElementById('errorMsg');
   if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
 
-  // 并行拉取：基金估值 + 指数
   let settled;
   try {
     [settled] = await Promise.all([
@@ -789,7 +959,6 @@ async function fetchAll() {
     ]);
   } catch(e) {
     settled = FUNDS.map(() => ({ status: 'rejected', reason: e }));
-    // 单独再试指数
     fetchIndexJSONP();
   }
 
@@ -972,26 +1141,32 @@ function resetCountdown() {
   }, 1000);
 }
 
-// ── 初始化 ──
-applyCostOverrides();
+// ── 初始化：先加载云端数据，再决定是否用预填值 ──
+async function init() {
+  // 1. 加载云端数据（覆盖 FUNDS 的 cost 字段）
+  await loadCloudData();
 
-function checkInitData() {
-  const f = FUNDS[0];
-  return f && f.gsz && f.gsz !== '{{' && f.dwjz && f.dwjz !== '{{';
+  // 2. 检查是否有 Actions 预填的实时净值
+  function checkInitData() {
+    const f = FUNDS[0];
+    return f && f.gsz && f.gsz !== '{{' && f.dwjz && f.dwjz !== '{{';
+  }
+
+  if (checkInitData()) {
+    hasInitData = true;
+    FUNDS.forEach(f => { fetched[f.code] = { gsz: f.gsz, dwjz: f.dwjz }; });
+    render();
+    fetchIndexJSONP();
+    resetCountdown();
+  } else {
+    const cdEl = document.getElementById('countdown');
+    if (cdEl) cdEl.textContent = '05:00 后自动刷新';
+    fetchAll();
+    resetCountdown();
+  }
 }
 
-if (checkInitData()) {
-  hasInitData = true;
-  FUNDS.forEach(f => { fetched[f.code] = { gsz: f.gsz, dwjz: f.dwjz }; });
-  render();
-  fetchIndexJSONP();   // 初始化时拉一次指数
-  resetCountdown();
-} else {
-  const cdEl = document.getElementById('countdown');
-  if (cdEl) cdEl.textContent = '05:00 后自动刷新';
-  fetchAll();
-  resetCountdown();
-}
+init();
 </script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-05-12 09:15",
+  "updatedAt": "2026-05-12 10:10",
   "funds": [
     {
       "code": "008702",
@@ -85,6 +85,13 @@
       "cost": 0,
       "group": "自选基金",
       "color": "#ffc53d"
+    },
+    {
+      "code": "016371",
+      "name": "信澳业绩驱动混合C",
+      "cost": 0,
+      "group": "自选基金",
+      "color": "#b37feb"
     }
   ]
 }

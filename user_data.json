@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-05-21 10:40",
+  "updatedAt": "2026-05-21 10:43",
   "funds": [
     {
       "code": "008702",
@@ -92,6 +92,13 @@
       "cost": 4987,
       "group": "自选基金",
       "color": "#b37feb"
+    },
+    {
+      "code": "024973",
+      "name": "景顺长城中证芯片产业ETF联接C",
+      "cost": 0,
+      "group": "自选基金",
+      "color": "#ffd666"
     }
   ]
 }

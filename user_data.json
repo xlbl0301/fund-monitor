@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-05-21 10:43",
+  "updatedAt": "2026-05-21 10:44",
   "funds": [
     {
       "code": "008702",
@@ -57,13 +57,6 @@
       "cost": 5140,
       "group": "自选基金",
       "color": "#bfbfbf"
-    },
-    {
-      "code": "008280",
-      "name": "国泰中证煤炭ETF联接C",
-      "cost": 0,
-      "group": "自选基金",
-      "color": "#d4b106"
     },
     {
       "code": "012863",

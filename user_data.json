@@ -1,74 +1,74 @@
 {
   "version": 1,
-  "updatedAt": "2026-05-21 10:44",
+  "updatedAt": "2026-05-22 09:28",
   "funds": [
     {
       "code": "008702",
       "name": "华夏黄金ETF联接C",
-      "cost": 39156,
+      "cost": 39424,
       "group": "黄金 & 贵金属",
       "color": "#ff4d4f"
     },
     {
       "code": "011036",
       "name": "嘉实中证稀土产业ETF联接C",
-      "cost": 3918,
+      "cost": 4832.88,
       "group": "稀土",
       "color": "#ff7a45"
     },
     {
       "code": "018044",
       "name": "天弘纳斯达克100指数发起(QDII)C",
-      "cost": 1075,
+      "cost": 1220,
       "group": "纳斯达克100",
       "color": "#73d13d"
     },
     {
       "code": "008971",
       "name": "大成纳斯达克100ETF联接(QDII)C",
-      "cost": 508,
+      "cost": 609,
       "group": "纳斯达克100",
       "color": "#36cfc9"
     },
     {
       "code": "004433",
       "name": "南方有色金属ETF联接C",
-      "cost": 22334,
+      "cost": 24887,
       "group": "黄金 & 贵金属",
       "color": "#9254de"
     },
     {
       "code": "016453",
       "name": "南方纳斯达克100指数发起(QDII)C",
-      "cost": 509,
+      "cost": 609,
       "group": "纳斯达克100",
       "color": "#f759ab"
     },
     {
       "code": "025778",
       "name": "东方阿尔法瑞享混合发起C",
-      "cost": 7685,
+      "cost": 8531.67,
       "group": "自选基金",
       "color": "#40a9ff"
     },
     {
       "code": "025857",
       "name": "华夏中证电网设备主题ETF发起式联接C",
-      "cost": 5140,
+      "cost": 6926.45,
       "group": "自选基金",
       "color": "#bfbfbf"
     },
     {
       "code": "012863",
       "name": "汇添富中证电池主题ETF发起式联接C",
-      "cost": 3296,
+      "cost": 3516.35,
       "group": "自选基金",
       "color": "#ff85c2"
     },
     {
       "code": "020840",
       "name": "南方中证半导体产业指数发起C",
-      "cost": 1694,
+      "cost": 2123,
       "group": "自选基金",
       "color": "#5cdbd3"
     },
@@ -82,14 +82,14 @@
     {
       "code": "016371",
       "name": "信澳业绩驱动混合C",
-      "cost": 4987,
+      "cost": 5403,
       "group": "自选基金",
       "color": "#b37feb"
     },
     {
       "code": "024973",
       "name": "景顺长城中证芯片产业ETF联接C",
-      "cost": 0,
+      "cost": 5000,
       "group": "自选基金",
       "color": "#ffd666"
     }

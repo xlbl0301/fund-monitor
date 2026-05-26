@@ -1,74 +1,74 @@
 {
   "version": 1,
-  "updatedAt": "2026-05-25 11:22",
+  "updatedAt": "2026-05-26 09:50",
   "funds": [
     {
       "code": "008702",
       "name": "华夏黄金ETF联接C",
-      "cost": 39541,
+      "cost": 39781,
       "group": "黄金 & 贵金属",
       "color": "#ff4d4f"
     },
     {
       "code": "011036",
       "name": "嘉实中证稀土产业ETF联接C",
-      "cost": 4946,
+      "cost": 4970,
       "group": "稀土",
       "color": "#ff7a45"
     },
     {
       "code": "018044",
       "name": "天弘纳斯达克100指数发起(QDII)C",
-      "cost": 1270,
+      "cost": 1320,
       "group": "纳斯达克100",
       "color": "#73d13d"
     },
     {
       "code": "008971",
       "name": "大成纳斯达克100ETF联接(QDII)C",
-      "cost": 659,
+      "cost": 709,
       "group": "纳斯达克100",
       "color": "#36cfc9"
     },
     {
       "code": "004433",
       "name": "南方有色金属ETF联接C",
-      "cost": 25754,
+      "cost": 25866,
       "group": "黄金 & 贵金属",
       "color": "#9254de"
     },
     {
       "code": "016453",
       "name": "南方纳斯达克100指数发起(QDII)C",
-      "cost": 659,
+      "cost": 709,
       "group": "纳斯达克100",
       "color": "#f759ab"
     },
     {
       "code": "025778",
       "name": "东方阿尔法瑞享混合发起C",
-      "cost": 8697,
+      "cost": 9150,
       "group": "自选基金",
       "color": "#40a9ff"
     },
     {
       "code": "025857",
       "name": "华夏中证电网设备主题ETF发起式联接C",
-      "cost": 7066,
+      "cost": 7134,
       "group": "自选基金",
       "color": "#bfbfbf"
     },
     {
       "code": "012863",
       "name": "汇添富中证电池主题ETF发起式联接C",
-      "cost": 3516.35,
+      "cost": 3880,
       "group": "自选基金",
       "color": "#ff85c2"
     },
     {
       "code": "020840",
       "name": "南方中证半导体产业指数发起C",
-      "cost": 2142,
+      "cost": 540,
       "group": "自选基金",
       "color": "#5cdbd3"
     },
@@ -82,14 +82,14 @@
     {
       "code": "016371",
       "name": "信澳业绩驱动混合C",
-      "cost": 5709,
+      "cost": 5947,
       "group": "自选基金",
       "color": "#b37feb"
     },
     {
       "code": "024973",
       "name": "景顺长城中证芯片产业ETF联接C",
-      "cost": 5122,
+      "cost": 5453,
       "group": "自选基金",
       "color": "#ffd666"
     }

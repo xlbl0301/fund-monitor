@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-05-29 08:56",
+  "updatedAt": "2026-05-29 13:11",
   "funds": [
     {
       "code": "008702",
@@ -71,13 +71,6 @@
       "cost": 5002.5,
       "group": "自选基金",
       "color": "#5cdbd3"
-    },
-    {
-      "code": "020973",
-      "name": "易方达机器人ETF联接C",
-      "cost": 0,
-      "group": "自选基金",
-      "color": "#ffc53d"
     },
     {
       "code": "016371",

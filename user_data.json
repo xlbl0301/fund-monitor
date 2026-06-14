@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-06-15 07:23",
+  "updatedAt": "2026-06-15 07:24",
   "funds": [
     {
       "code": "008702",
@@ -61,28 +61,28 @@
     {
       "code": "012863",
       "name": "汇添富中证电池主题ETF发起式联接C",
-      "cost": 9428,
+      "cost": 9619,
       "group": "自选基金",
       "color": "#ff85c2"
     },
     {
       "code": "020840",
       "name": "南方中证半导体产业指数发起C",
-      "cost": 1101,
+      "cost": 1091,
       "group": "自选基金",
       "color": "#5cdbd3"
     },
     {
       "code": "016371",
       "name": "信澳业绩驱动混合C",
-      "cost": 7897.98,
+      "cost": 7812,
       "group": "自选基金",
       "color": "#b37feb"
     },
     {
       "code": "024973",
       "name": "景顺长城中证芯片产业ETF联接C",
-      "cost": 2046,
+      "cost": 1039,
       "group": "自选基金",
       "color": "#ffd666"
     }

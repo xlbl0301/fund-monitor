@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-06-16 07:45",
+  "updatedAt": "2026-06-16 07:46",
   "funds": [
     {
       "code": "008702",
@@ -12,21 +12,21 @@
     {
       "code": "011036",
       "name": "嘉实中证稀土产业ETF联接C",
-      "cost": 1027,
+      "cost": 0,
       "group": "稀土",
       "color": "#ff7a45"
     },
     {
       "code": "018044",
       "name": "天弘纳斯达克100指数发起(QDII)C",
-      "cost": 1912,
+      "cost": 1922,
       "group": "纳斯达克100",
       "color": "#73d13d"
     },
     {
       "code": "008971",
       "name": "大成纳斯达克100ETF联接(QDII)C",
-      "cost": 1166,
+      "cost": 1600,
       "group": "纳斯达克100",
       "color": "#36cfc9"
     },
@@ -40,14 +40,14 @@
     {
       "code": "016453",
       "name": "南方纳斯达克100指数发起(QDII)C",
-      "cost": 2161,
+      "cost": 2373,
       "group": "纳斯达克100",
       "color": "#f759ab"
     },
     {
       "code": "025778",
       "name": "东方阿尔法瑞享混合发起C",
-      "cost": 3155,
+      "cost": 3256.38,
       "group": "自选基金",
       "color": "#40a9ff"
     },
@@ -61,28 +61,28 @@
     {
       "code": "012863",
       "name": "汇添富中证电池主题ETF发起式联接C",
-      "cost": 9619,
+      "cost": 9997.07,
       "group": "自选基金",
       "color": "#ff85c2"
     },
     {
       "code": "020840",
       "name": "南方中证半导体产业指数发起C",
-      "cost": 1091,
+      "cost": 0,
       "group": "自选基金",
       "color": "#5cdbd3"
     },
     {
       "code": "016371",
       "name": "信澳业绩驱动混合C",
-      "cost": 7812,
+      "cost": 8483.43,
       "group": "自选基金",
       "color": "#b37feb"
     },
     {
       "code": "024973",
       "name": "景顺长城中证芯片产业ETF联接C",
-      "cost": 1039,
+      "cost": 0,
       "group": "自选基金",
       "color": "#ffd666"
     }

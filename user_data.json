@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-06-16 07:46",
+  "updatedAt": "2026-06-16 14:20",
   "funds": [
     {
       "code": "008702",
@@ -85,6 +85,13 @@
       "cost": 0,
       "group": "自选基金",
       "color": "#ffd666"
+    },
+    {
+      "code": "008989",
+      "name": "大成科技创新混合C",
+      "cost": 0,
+      "group": "自选基金",
+      "color": "#ffc53d"
     }
   ]
 }

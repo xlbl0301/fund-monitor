@@ -1,53 +1,53 @@
 {
   "version": 1,
-  "updatedAt": "2026-07-07 09:44",
+  "updatedAt": "2026-07-08 10:04",
   "funds": [
     {
       "code": "008702",
       "name": "华夏黄金ETF联接C",
-      "cost": 13038,
+      "cost": 12962,
       "group": "黄金 & 贵金属",
       "color": "#ff4d4f"
     },
     {
       "code": "011036",
       "name": "嘉实中证稀土产业ETF联接C",
-      "cost": 6730,
+      "cost": 6651,
       "group": "稀土",
       "color": "#ff7a45"
     },
     {
       "code": "018044",
       "name": "天弘纳斯达克100指数发起(QDII)C",
-      "cost": 9000,
+      "cost": 9200,
       "group": "纳斯达克100",
       "color": "#73d13d"
     },
     {
       "code": "004433",
       "name": "南方有色金属ETF联接C",
-      "cost": 2958,
+      "cost": 4873,
       "group": "黄金 & 贵金属",
       "color": "#9254de"
     },
     {
       "code": "025778",
       "name": "东方阿尔法瑞享混合发起C",
-      "cost": 3001,
+      "cost": 3028,
       "group": "自选基金",
       "color": "#40a9ff"
     },
     {
       "code": "025857",
       "name": "华夏中证电网设备主题ETF发起式联接C",
-      "cost": 7327,
+      "cost": 8100,
       "group": "自选基金",
       "color": "#bfbfbf"
     },
     {
       "code": "012863",
       "name": "汇添富中证电池主题ETF发起式联接C",
-      "cost": 20988,
+      "cost": 21910,
       "group": "自选基金",
       "color": "#ff85c2"
     },
@@ -61,14 +61,14 @@
     {
       "code": "024973",
       "name": "景顺长城中证芯片产业ETF联接C",
-      "cost": 6827,
+      "cost": 8797.7,
       "group": "自选基金",
       "color": "#ffd666"
     },
     {
       "code": "020096",
       "name": "富国中证绿色电力ETF发起式联接C",
-      "cost": 8698,
+      "cost": 9526,
       "group": "自选基金",
       "color": "#d4b106"
     },
@@ -82,35 +82,35 @@
     {
       "code": "008888",
       "name": "华夏国证半导体芯片ETF联接C",
-      "cost": 10475,
+      "cost": 12428,
       "group": "自选基金",
       "color": "#36cfc9"
     },
     {
       "code": "005963",
       "name": "宝盈人工智能股票C",
-      "cost": 6650,
+      "cost": 8545.88,
       "group": "自选基金",
       "color": "#f759ab"
     },
     {
       "code": "008591",
       "name": "天弘中证全指证券公司ETF联接C",
-      "cost": 9865,
+      "cost": 12587,
       "group": "自选基金",
       "color": "#69b1ff"
     },
     {
       "code": "008280",
       "name": "国泰中证煤炭ETF联接C",
-      "cost": 3141,
+      "cost": 3066,
       "group": "自选基金",
       "color": "#ff9c6e"
     },
     {
       "code": "020111",
       "name": "富国恒生港股通创新药及医疗保健ETF发起式联接C",
-      "cost": 5000,
+      "cost": 6822,
       "group": "自选基金",
       "color": "#ffc53d"
     }

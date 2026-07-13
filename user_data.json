@@ -1,25 +1,25 @@
 {
   "version": 1,
-  "updatedAt": "2026-07-13 09:44",
+  "updatedAt": "2026-07-13 09:45",
   "funds": [
     {
       "code": "008702",
       "name": "华夏黄金ETF联接C",
-      "cost": 12899,
+      "cost": 26085.27,
       "group": "黄金 & 贵金属",
       "color": "#ff4d4f"
     },
     {
       "code": "011036",
       "name": "嘉实中证稀土产业ETF联接C",
-      "cost": 8246,
+      "cost": 23180.95,
       "group": "稀土",
       "color": "#ff7a45"
     },
     {
       "code": "018044",
       "name": "天弘纳斯达克100指数发起(QDII)C",
-      "cost": 9700,
+      "cost": 25166.87,
       "group": "纳斯达克100",
       "color": "#73d13d"
     },
@@ -33,14 +33,14 @@
     {
       "code": "025778",
       "name": "东方阿尔法瑞享混合发起C",
-      "cost": 2578,
+      "cost": 1995.16,
       "group": "自选基金",
       "color": "#40a9ff"
     },
     {
       "code": "025857",
       "name": "华夏中证电网设备主题ETF发起式联接C",
-      "cost": 7825,
+      "cost": 10000,
       "group": "自选基金",
       "color": "#bfbfbf"
     },

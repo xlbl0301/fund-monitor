@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-07-15 09:19",
+  "updatedAt": "2026-07-15 09:22",
   "funds": [
     {
       "code": "008702",
@@ -12,7 +12,7 @@
     {
       "code": "011036",
       "name": "嘉实中证稀土产业ETF联接C",
-      "cost": 7726.82,
+      "cost": 7913,
       "group": "稀土",
       "color": "#ff7a45"
     },
@@ -26,21 +26,21 @@
     {
       "code": "004433",
       "name": "南方有色金属ETF联接C",
-      "cost": 5510.33,
+      "cost": 5800,
       "group": "黄金 & 贵金属",
       "color": "#9254de"
     },
     {
       "code": "025778",
       "name": "东方阿尔法瑞享混合发起C",
-      "cost": 2506,
+      "cost": 2550,
       "group": "自选基金",
       "color": "#40a9ff"
     },
     {
       "code": "025857",
       "name": "华夏中证电网设备主题ETF发起式联接C",
-      "cost": 7451,
+      "cost": 7606,
       "group": "自选基金",
       "color": "#bfbfbf"
     },
@@ -68,56 +68,56 @@
     {
       "code": "020096",
       "name": "富国中证绿色电力ETF发起式联接C",
-      "cost": 9521,
+      "cost": 9627,
       "group": "自选基金",
       "color": "#d4b106"
     },
     {
       "code": "020357",
       "name": "华夏半导体材料设备ETF联接C",
-      "cost": 11823.64,
+      "cost": 11779,
       "group": "自选基金",
       "color": "#95de64"
     },
     {
       "code": "008888",
       "name": "华夏国证半导体芯片ETF联接C",
-      "cost": 12120.5,
+      "cost": 12329,
       "group": "自选基金",
       "color": "#36cfc9"
     },
     {
       "code": "005963",
       "name": "宝盈人工智能股票C",
-      "cost": 12062,
+      "cost": 12541.55,
       "group": "自选基金",
       "color": "#f759ab"
     },
     {
       "code": "008591",
       "name": "天弘中证全指证券公司ETF联接C",
-      "cost": 13312.76,
+      "cost": 13359,
       "group": "自选基金",
       "color": "#69b1ff"
     },
     {
       "code": "020111",
       "name": "富国恒生港股通创新药及医疗保健ETF发起式联接C",
-      "cost": 6922,
+      "cost": 6906,
       "group": "自选基金",
       "color": "#ffc53d"
     },
     {
       "code": "014544",
       "name": "汇添富中证沪港深云计算产业ETF联接C",
-      "cost": 4918,
+      "cost": 4906,
       "group": "自选基金",
       "color": "#b37feb"
     },
     {
       "code": "015033",
       "name": "国联医药消费混合C",
-      "cost": 5000,
+      "cost": 5162.63,
       "group": "自选基金",
       "color": "#ff9c6e"
     },

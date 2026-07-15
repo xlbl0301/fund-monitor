@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "updatedAt": "2026-07-14 10:31",
+  "updatedAt": "2026-07-15 09:18",
   "funds": [
     {
       "code": "008702",
       "name": "华夏黄金ETF联接C",
-      "cost": 12731,
+      "cost": 12632,
       "group": "黄金 & 贵金属",
       "color": "#ff4d4f"
     },

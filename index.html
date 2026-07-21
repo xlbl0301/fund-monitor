@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>📈 基金净值监控</title>
+<title>📈 基金实时估值监控</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;
@@ -32,14 +32,6 @@ body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;
 .btn-add{background:#1a6c3f;color:#fff}
 .btn-add:hover{opacity:.85}
 .btn-add:disabled{opacity:.5;cursor:not-allowed}
-
-.notice{
-  text-align:center;margin-bottom:18px;padding:8px 16px;
-  background:rgba(255,197,61,.1);border:1px solid rgba(255,197,61,.2);
-  border-radius:8px;font-size:.76rem;
-}
-.notice .dot{color:#ffc53d;font-weight:700}
-.notice .hint{color:#8b949e;font-size:.72rem}
 
 /* ── 基金管理面板 ── */
 #mgmtPanel{
@@ -114,7 +106,6 @@ tr:hover td{background:rgba(255,255,255,.03)}
 .bold{font-weight:700}
 .group-header td{background:rgba(88,166,255,.08);color:#58a6ff;
   font-size:.75rem;font-weight:700;letter-spacing:1px;padding:6px 8px}
-.data-date{font-size:.65rem;color:#484f58;font-weight:400;margin-left:3px}
 
 /* ── 成本编辑态 ── */
 td.edit-mode{padding:5px 6px}
@@ -238,12 +229,6 @@ td.edit-mode .cost-input{display:inline-block}
 
 <div class="page-wrap">
 
-<!-- 估值服务下线提示 -->
-<div class="notice" id="estNotice">
-  <span class="dot">●</span> 天天基金已下线盘中实时估值服务，本网站展示最新基金净值数据
-  <span class="hint">（每个交易日约 21:00 更新当日净值）</span>
-</div>
-
 <!-- 错误提示 -->
 <div id="errorMsg" style="display:none;text-align:center;padding:8px 16px;
   background:rgba(255,77,77,.15);border:1px solid rgba(255,77,77,.4);
@@ -251,7 +236,7 @@ td.edit-mode .cost-input{display:inline-block}
 </div>
 
 <div class="hd">
-  <h1>📈 基金净值监控</h1>
+  <h1>📈 基金实时估值监控</h1>
   <div class="ts" id="updateTime">加载中…</div>
   <!-- 指数横幅 -->
   <div class="index-bar" id="indexBar">
@@ -277,7 +262,7 @@ td.edit-mode .cost-input{display:inline-block}
     <input class="mgmt-input" id="addCost" type="number" min="0" step="0.01" placeholder="持仓成本（元）">
     <button class="btn btn-add" id="addBtn" onclick="addFund()">＋ 添加基金</button>
   </div>
-  <div class="mgmt-hint" id="addHint">输入6位基金编码和持仓成本，拉取基金信息后添加到列表</div>
+  <div class="mgmt-hint" id="addHint">输入6位基金编码和持仓成本，自动拉取基金信息后添加到列表</div>
   <hr class="mgmt-divider">
   <div style="font-size:.75rem;color:#8b949e;margin-bottom:8px">当前持仓基金（点 × 删除）：</div>
   <div id="fundTagList"><!-- JS填充 --></div>
@@ -305,22 +290,22 @@ td.edit-mode .cost-input{display:inline-block}
     </div>
     <div class="sum-item">
       <div class="sv" style="color:#58a6ff" id="totalValue">—</div>
-      <div class="sl">最新估值</div>
+      <div class="sl">今日估算市值</div>
     </div>
     <div class="sum-item">
       <div class="sv" id="totalProfit">—</div>
-      <div class="sl">累计浮盈</div>
+      <div class="sl">今日浮动收益</div>
     </div>
     <div class="sum-item">
       <div class="sv" id="totalPct">—</div>
-      <div class="sl">累计收益率</div>
+      <div class="sl">今日综合涨跌幅</div>
     </div>
   </div>
 </div>
 
 <!-- 涨跌幅条形图 -->
 <div class="card">
-  <div class="card-title">▸ 最新净值涨跌对比</div>
+  <div class="card-title">▸ 今日涨跌幅对比</div>
   <div id="barChart"><!-- JS 填充 --></div>
 </div>
 
@@ -331,8 +316,8 @@ td.edit-mode .cost-input{display:inline-block}
     <thead>
       <tr>
         <th>基金</th><th>持仓成本</th><th>估算份额</th>
-        <th>最新净值</th><th>累计涨跌</th>
-        <th>持仓盈亏</th><th>当前市值</th>
+        <th>昨日净值</th><th>实时估值</th>
+        <th>涨跌幅</th><th>今日浮盈</th><th>今日市值</th>
       </tr>
     </thead>
     <tbody id="fundTable"><!-- JS 填充 --></tbody>
@@ -350,7 +335,7 @@ td.edit-mode .cost-input{display:inline-block}
   </div>
 </div>
 
-<div class="footer">数据来自天天基金，正常情况每个交易日约 21:00 更新</div>
+<div class="footer">盘中估值仅供参考，以基金公司公布的实际净值为准</div>
 
 </div><!-- /page-wrap -->
 
@@ -366,7 +351,9 @@ const GH_REPO   = 'fund-monitor';
 const GH_FILE   = 'user_data.json';
 const LS_TOKEN_KEY = 'gh_sync_token';
 function getToken() { return localStorage.getItem(LS_TOKEN_KEY) || ''; }
+// GitHub Raw 读取（无鉴权，CDN 有 ~30s 缓存，加 ?t= 绕过）
 const GH_RAW    = 'https://raw.githubusercontent.com/' + GH_OWNER + '/' + GH_REPO + '/main/' + GH_FILE;
+// GitHub API 写入
 const GH_API    = 'https://api.github.com/repos/' + GH_OWNER + '/' + GH_REPO + '/contents/' + GH_FILE;
 
 // ══════════════════════════════════════════
@@ -375,6 +362,7 @@ const GH_API    = 'https://api.github.com/repos/' + GH_OWNER + '/' + GH_REPO + '
 const LS_KEY        = 'fund_cost_overrides';
 const LS_FUNDS_KEY  = 'fund_custom_list';
 
+// 调色板（新增基金自动分配颜色）
 const COLOR_POOL = [
   "#ff4d4f","#ff7a45","#ffc53d","#73d13d","#36cfc9",
   "#40a9ff","#9254de","#f759ab","#bfbfbf","#d4b106",
@@ -382,18 +370,18 @@ const COLOR_POOL = [
   "#69b1ff","#ff9c6e","#ff7875","#a0d911","#36cfc9",
 ];
 
-// 默认持仓配置（不再预填 gsz/dwjz，首次加载时从 API 获取）
+// 默认持仓配置（Actions 预填了 gsz/dwjz；云端加载成功后会被覆盖）
 const DEFAULT_FUNDS = [
-  {code:"008702",name:"华夏黄金ETF联接C",           cost:44076.21,group:"黄金 & 贵金属",  color:"#ff4d4f"},
-  {code:"011036",name:"嘉实中证稀土产业ETF联接C",    cost:37545.90,group:"稀土",          color:"#ff7a45"},
-  {code:"014978",name:"华安纳斯达克100ETF联接(QDII)C",cost:11705.59,group:"纳斯达克100", color:"#ffc53d"},
-  {code:"018044",name:"天弘纳斯达克100指数发起(QDII)C",cost:21196.47,group:"纳斯达克100",color:"#73d13d"},
-  {code:"008971",name:"大成纳斯达克100ETF联接(QDII)C", cost:1633.21,group:"纳斯达克100", color:"#36cfc9"},
-  {code:"019525",name:"华泰柏瑞纳斯达克100ETF发起式联接C",cost:3556.16,group:"纳斯达克100",color:"#40a9ff"},
-  {code:"004433",name:"南方有色金属ETF联接C",         cost:50817.85,group:"黄金 & 贵金属",color:"#9254de"},
-  {code:"016453",name:"南方纳斯达克100指数发起(QDII)C",cost:1970.26, group:"纳斯达克100",color:"#f759ab"},
-  {code:"025857",name:"华夏中证电网设备主题ETF发起式联接C",cost:3504.28,group:"电网设备",  color:"#bfbfbf"},
-  {code:"016533",name:"嘉实纳斯达克100ETF发起联接(QDII)C",cost:282.39,group:"纳斯达克100",color:"#d4b106"},
+  {code:"008702",name:"华夏黄金ETF联接C",           cost:44076.21,gsz:"2.2469",dwjz:"2.2915",group:"黄金 & 贵金属",color:"#ff4d4f"},
+  {code:"011036",name:"嘉实中证稀土产业ETF联接C",    cost:37545.90,gsz:"1.3286",dwjz:"1.3227",group:"稀土",         color:"#ff7a45"},
+  {code:"014978",name:"华安纳斯达克100ETF联接(QDII)C",cost:11705.59,gsz:"6.9262",dwjz:"6.7408",group:"纳斯达克100",  color:"#ffc53d"},
+  {code:"018044",name:"天弘纳斯达克100指数发起(QDII)C",cost:21196.47,gsz:"1.7457",dwjz:"1.6990",group:"纳斯达克100",color:"#73d13d"},
+  {code:"008971",name:"大成纳斯达克100ETF联接(QDII)C", cost:1633.21,gsz:"5.4292",dwjz:"5.2839",group:"纳斯达克100", color:"#36cfc9"},
+  {code:"019525",name:"华泰柏瑞纳斯达克100ETF发起式联接C",cost:3556.16,gsz:"1.4143",dwjz:"1.3764",group:"纳斯达克100",color:"#40a9ff"},
+  {code:"004433",name:"南方有色金属ETF联接C",         cost:50817.85,gsz:"1.9952",dwjz:"2.0066",group:"黄金 & 贵金属",color:"#9254de"},
+  {code:"016453",name:"南方纳斯达克100指数发起(QDII)C",cost:1970.26, gsz:"1.9726",dwjz:"1.9198",group:"纳斯达克100", color:"#f759ab"},
+  {code:"025857",name:"华夏中证电网设备主题ETF发起式联接C",cost:3504.28,gsz:"1.2996",dwjz:"1.3092",group:"电网设备",color:"#bfbfbf"},
+  {code:"016533",name:"嘉实纳斯达克100ETF发起联接(QDII)C",cost:282.39,gsz:"1.8465",dwjz:"1.7971",group:"纳斯达克100",color:"#d4b106"},
 ];
 
 // ══════════════════════════════════════════
@@ -403,43 +391,48 @@ function setSyncStatus(state, text) {
   const el = document.getElementById('syncStatus');
   const tx = document.getElementById('syncText');
   if (!el || !tx) return;
-  el.className = state;
+  el.className = state;  // loading | syncing | ok | error
   tx.textContent = text;
 }
 
 // ══════════════════════════════════════════
 //  GitHub 读取 user_data.json（Raw CDN）
 // ══════════════════════════════════════════
-let _ghFileSha = '';
+let _ghFileSha = '';  // 记录文件 SHA，写入时需要
 
 async function loadCloudData() {
   setSyncStatus('loading', '云端加载中…');
   try {
+    // 加时间戳绕过 CDN 缓存
     const res = await fetch(GH_RAW + '?t=' + Date.now());
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     if (!Array.isArray(data.funds) || data.funds.length === 0) throw new Error('empty');
 
+    // 成功：用云端数据覆盖 FUNDS（保留 gsz/dwjz 来自 DEFAULT_FUNDS/Actions）
     FUNDS = data.funds.map(cf => {
       const df = DEFAULT_FUNDS.find(d => d.code === cf.code);
       return Object.assign({}, cf, {
-        dwjz: df ? df.dwjz : (cf.dwjz || ''),
-        gsz:  df ? df.gsz  : (cf.gsz  || ''),
+        gsz:  df ? df.gsz  : (cf.gsz  || '0'),
+        dwjz: df ? df.dwjz : (cf.dwjz || '0'),
       });
     });
 
     setSyncStatus('ok', '云端已同步 · ' + (data.updatedAt ? data.updatedAt.slice(5,16) : ''));
 
+    // 同时获取文件 SHA（用于后续写入）
     fetchGhFileSha();
     return true;
   } catch(e) {
     setSyncStatus('error', '云端不可用，使用本地');
+    // fallback：localStorage
     FUNDS = loadFundList_local();
-    fetchGhFileSha();
+    fetchGhFileSha();  // 仍尝试获取 SHA
     return false;
   }
 }
 
+// 获取文件 SHA（写入时需要）
 async function fetchGhFileSha() {
   try {
     const res = await fetch(GH_API, {
@@ -457,6 +450,7 @@ async function fetchGhFileSha() {
 async function saveCloudData(showMsg = true) {
   const token = getToken();
   if (!token) {
+    // 无 Token：仅本地保存
     saveFundList_local();
     setSyncStatus('error', '未配置Token，仅本地');
     if (showMsg) showToast('⚠️ 未配置 GitHub Token，修改仅存本地。\n请在「⚙️ 管理基金」中配置 Token 以启用云同步', true);
@@ -465,6 +459,7 @@ async function saveCloudData(showMsg = true) {
 
   setSyncStatus('syncing', '同步中…');
 
+  // 构造要保存的数据（去掉实时 gsz/dwjz）
   const now = new Date();
   const ts  = now.getFullYear() + '-' +
     String(now.getMonth()+1).padStart(2,'0') + '-' +
@@ -505,6 +500,7 @@ async function saveCloudData(showMsg = true) {
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
+      // SHA 冲突：重新获取 SHA 后重试一次
       if (res.status === 409 || (errData.message && errData.message.includes('sha'))) {
         await fetchGhFileSha();
         if (_ghFileSha) {
@@ -526,7 +522,9 @@ async function saveCloudData(showMsg = true) {
       _ghFileSha = d.content && d.content.sha ? d.content.sha : _ghFileSha;
     }
 
+    // 同时存本地 fallback
     saveFundList_local();
+
     setSyncStatus('ok', '已同步到云端 · ' + ts.slice(5));
     if (showMsg) showToast('✅ 已同步到云端，所有设备即时生效');
   } catch(e) {
@@ -547,7 +545,7 @@ function loadFundList_local() {
       if (Array.isArray(saved) && saved.length > 0) {
         return saved.map(sf => {
           const df = DEFAULT_FUNDS.find(d => d.code === sf.code);
-          return df ? Object.assign({}, sf, {dwjz: df.dwjz, gsz: df.gsz}) : sf;
+          return df ? Object.assign({}, sf, {gsz: df.gsz, dwjz: df.dwjz}) : sf;
         });
       }
     }
@@ -565,14 +563,17 @@ function saveFundList_local() {
   } catch(e) {}
 }
 
+// 兼容旧接口名
 function saveFundList() { saveFundList_local(); }
 
+// 运行时 FUNDS（初始用 DEFAULT，loadCloudData 后会覆盖）
 let FUNDS = DEFAULT_FUNDS.map(f => Object.assign({}, f));
 
 let fetched         = {};
 let refreshTimer    = null;
 let countdownTimer  = null;
 let cd              = 300;
+let hasInitData     = false;
 let editMode        = false;
 
 // ══════════════════════════════════════════
@@ -603,6 +604,7 @@ function toggleMgmt() {
   const panel = document.getElementById('mgmtPanel');
   panel.classList.toggle('open');
   renderFundTags();
+  // 显示 Token 状态
   const tokenInput = document.getElementById('tokenInput');
   const tokenHint  = document.getElementById('tokenHint');
   if (tokenInput) {
@@ -629,6 +631,7 @@ function saveToken() {
     ? '<em style="color:#3fb950">✅ Token 已保存（' + val.slice(0,8) + '…），云同步已启用</em>'
     : '<em style="color:#8b949e">Token 已清空，云同步写入已禁用</em>';
   showToast(val ? '✅ Token 已保存，云同步已启用' : '⚠️ Token 已清空');
+  // 立即尝试同步一次
   if (val) fetchGhFileSha();
 }
 
@@ -657,103 +660,281 @@ function renderFundTags() {
   ).join('');
 }
 
-// ══════════════════════════════════════════
-//  数据获取层（新）—— 替代已失效的 fundgz JSONP API
-// ══════════════════════════════════════════
+// 添加基金
+async function addFund() {
+  const codeInput = document.getElementById('addCode');
+  const costInput = document.getElementById('addCost');
+  const hintEl    = document.getElementById('addHint');
+  const addBtn    = document.getElementById('addBtn');
 
-// 基金名称缓存（页面生命周期内有效）
-const _nameCache = {};
-const _fundDataCache = {};
-const _fundDataLoading = {};
+  const code = codeInput.value.trim();
+  const cost = parseFloat(costInput.value);
 
-/**
- * 通过注入 <script> 标签加载基金数据（绕过 CORS 限制）
- * pingzhongdata JS 文件定义 Data_netWorthTrend 和 fS_name 全局变量
- */
-function fetchFundData(code) {
-  // 缓存命中（5分钟内）
-  const cached = _fundDataCache[code];
-  if (cached && (Date.now() - cached.ts < 300000)) {
-    return Promise.resolve(cached.data);
+  // 校验
+  if (!/^\d{6}$/.test(code)) {
+    codeInput.classList.add('invalid');
+    hintEl.innerHTML = '<em>⚠️ 请输入正确的6位基金编码</em>';
+    return;
   }
-  // 去重：相同请求复用
-  if (_fundDataLoading[code]) return _fundDataLoading[code];
+  codeInput.classList.remove('invalid');
 
-  const promise = new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    const timer = setTimeout(() => { cleanup(); reject(new Error('timeout:' + code)); }, 15000);
+  if (isNaN(cost) || cost < 0) {
+    costInput.classList.add('invalid');
+    hintEl.innerHTML = '<em>⚠️ 请输入正确的持仓成本（元）</em>';
+    return;
+  }
+  costInput.classList.remove('invalid');
 
-    function cleanup() {
-      if (script.parentNode) script.parentNode.removeChild(script);
-      try { delete window.Data_netWorthTrend; } catch(e) {}
-      try { delete window.fS_name; } catch(e) {}
-      try { delete window.fS_code; } catch(e) {}
-      try { delete window.syl_1y; } catch(e) {}
-      try { delete window.syl_6y; } catch(e) {}
-      try { delete window.syl_3y; } catch(e) {}
-      try { delete window.syl_1n; } catch(e) {}
-      try { delete window.Data_ACWorthTrend; } catch(e) {}
-      try { delete window.Data_fluctuationScale; } catch(e) {}
+  if (FUNDS.find(f => f.code === code)) {
+    hintEl.innerHTML = '<em>⚠️ 基金 ' + code + ' 已在列表中</em>';
+    return;
+  }
+
+  // 拉取基金信息
+  addBtn.disabled = true;
+  addBtn.textContent = '⏳ 查询中…';
+  hintEl.innerHTML = '正在拉取基金 ' + code + ' 的信息…';
+
+  try {
+    const data = await fetchOneJSONP(code);
+    if (!data || !data.name) {
+      hintEl.innerHTML = '<em>⚠️ 未找到基金 ' + code + '，请核对编码</em>';
+      addBtn.disabled = false; addBtn.textContent = '＋ 添加基金';
+      return;
     }
 
-    script.onload = () => {
+    // 分配颜色
+    const usedColors = new Set(FUNDS.map(f => f.color));
+    const color = COLOR_POOL.find(c => !usedColors.has(c)) || COLOR_POOL[FUNDS.length % COLOR_POOL.length];
+
+    const newFund = {
+      code:  data.fundcode || code,
+      name:  data.name,
+      cost:  cost,
+      gsz:   data.gsz  || data.dwjz || '0',
+      dwjz:  data.dwjz || data.gsz  || '0',
+      group: '自选基金',
+      color: color,
+    };
+
+    FUNDS.push(newFund);
+    fetched[newFund.code] = { gsz: newFund.gsz, dwjz: newFund.dwjz };
+
+    hintEl.innerHTML = '<em>✅ 已添加：' + newFund.name + ' · 同步中…</em>';
+    codeInput.value = '';
+    costInput.value = '';
+    renderFundTags();
+    render();
+
+    // 云端同步
+    await saveCloudData(false);
+    hintEl.innerHTML = '<em>✅ 已添加并同步：' + newFund.name + '</em>';
+    showToast('✅ 已添加 ' + newFund.name + '，云端同步完成');
+  } catch(e) {
+    hintEl.innerHTML = '<em>⚠️ 拉取失败，请检查网络后重试</em>';
+  }
+
+  addBtn.disabled = false;
+  addBtn.textContent = '＋ 添加基金';
+}
+
+// 删除基金
+async function deleteFund(code) {
+  const f = FUNDS.find(f => f.code === code);
+  if (!f) return;
+  if (!confirm('确认删除基金 ' + code + '（' + f.name + '）？\n此操作不影响持仓成本记录，可重新添加。')) return;
+
+  FUNDS = FUNDS.filter(f => f.code !== code);
+  delete fetched[code];
+
+  renderFundTags();
+  render();
+
+  // 云端同步
+  await saveCloudData(false);
+  showToast('🗑️ 已删除 ' + f.name + '，云端同步完成');
+}
+
+// ══════════════════════════════════════════
+//  编辑成本模式
+// ══════════════════════════════════════════
+function toggleEditMode() {
+  editMode = !editMode;
+  const editBtn = document.getElementById('editBtn');
+  const saveBtn = document.getElementById('saveBtn');
+  const hint    = document.getElementById('countdown');
+
+  if (editMode) {
+    editBtn.textContent = '❌ 取消编辑';
+    editBtn.className   = 'btn btn-edit';
+    saveBtn.style.display = 'inline-block';
+    hint.innerHTML = '<em>编辑模式：直接修改成本后点「保存修改」</em>';
+    render();
+  } else {
+    editBtn.textContent = '✏️ 编辑成本';
+    editBtn.className   = 'btn btn-edit';
+    saveBtn.style.display = 'none';
+    hint.textContent   = '每5分钟自动刷新';
+    applyCostOverrides();
+    render();
+  }
+}
+
+async function saveCostEdits() {
+  let changed = false;
+
+  document.querySelectorAll('.cost-input').forEach(input => {
+    const code = input.dataset.code;
+    const val  = parseFloat(input.value);
+    if (!isNaN(val) && val >= 0) {
+      const fund = FUNDS.find(f => f.code === code);
+      if (fund && fund.cost !== val) {
+        fund.cost = val;
+        changed = true;
+      }
+      input.classList.remove('invalid');
+    } else {
+      input.classList.add('invalid');
+    }
+  });
+
+  if (changed) {
+    editMode = false;
+    document.getElementById('editBtn').textContent = '✏️ 编辑成本';
+    document.getElementById('saveBtn').style.display = 'none';
+    document.getElementById('countdown').textContent = '每5分钟自动刷新';
+    render();
+
+    // 云端同步（含 toast 提示）
+    await saveCloudData(true);
+  } else {
+    showToast('⚠️ 未检测到有效变化', true);
+  }
+}
+
+// ══════════════════════════════════════════
+//  Toast 提示
+// ══════════════════════════════════════════
+let toastTimer = null;
+function showToast(msg, isError=false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = isError ? 'show error' : 'show';
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = ''; }, 3000);
+}
+
+// ══════════════════════════════════════════
+//  工具函数
+// ══════════════════════════════════════════
+function fmt(v, dec=2) { return Number(v).toFixed(dec); }
+function fmtY(v) { return '¥' + Number(v).toLocaleString('zh-CN',{minimumFractionDigits:2,maxFractionDigits:2}); }
+
+const GROUP_LABELS = {
+  "黄金 & 贵金属": "黄金 & 贵金属",
+  "稀土": "稀土产业",
+  "纳斯达克100": "纳斯达克100",
+  "电网设备": "电网设备",
+  "自选基金": "自选基金",
+};
+
+// ══════════════════════════════════════════
+//  新浪实时估值 + 东方财富兜底 (替代已下线的 fundgz JSONP)
+// ══════════════════════════════════════════
+// 主源: hq.sinajs.cn/list=fu_{code} (JSONP, 盘中实时估值每秒更新)
+// 兜底: fund.eastmoney.com/pingzhongdata/{code}.js (历史净值 Script注入)
+// 新浪返回格式: var hq_str_fu_008702="名称,时间,估值,昨净值,前净值,涨跌额,涨跌%,日期,...";
+//               [0]名称 [1]HH:MM:SS [2]gsz [3]dwjz [4]前净值 [5]涨跌额 [6]gszzl% [7]日期
+
+const _sinaCallbacks = {};
+const _sinaTimers = {};
+
+// 新浪实时估值 (JSONP Script注入, 不受CORS限制)
+function fetchOneSina(code) {
+  return new Promise((resolve) => {
+    const cbKey = 'fu_' + code;
+    _sinaCallbacks[cbKey] = resolve;
+    _sinaTimers[cbKey] = setTimeout(() => {
+      delete _sinaCallbacks[cbKey]; delete _sinaTimers[cbKey];
+      resolve(null);
+    }, 8000);
+
+    const sc = document.createElement('script');
+    sc.id = 'sina_script_' + code;
+    sc.src = 'https://hq.sinajs.cn/list=fu_' + code + '&_=' + Date.now();
+    sc.onload = function() {
+      clearTimeout(_sinaTimers[cbKey]);
+      try {
+        const raw = window['hq_str_fu_' + code];
+        if (!raw || raw.indexOf(',') === -1) { cleanup(); resolve(null); return; }
+        const f = raw.split(',');
+        if (f.length < 7) { cleanup(); resolve(null); return; }
+        resolve({
+          fundcode: code,
+          name: f[0] || '',
+          jzrq: f[7] || '',
+          dwjz: f[3] || '0',
+          gsz: f[2] || '0',
+          gszzl: f[6] || '0',
+          gztime: (f[7] || '') + ' ' + (f[1] || '--'),
+        });
+      } catch(e) { resolve(null); }
+      cleanup();
+    };
+    sc.onerror = function() { clearTimeout(_sinaTimers[cbKey]); cleanup(); resolve(null); };
+    function cleanup() {
+      delete _sinaCallbacks[cbKey]; delete _sinaTimers[cbKey];
+      const el = document.getElementById('sina_script_' + code); if (el) el.remove();
+    }
+    document.head.appendChild(sc);
+  });
+}
+
+// 东方财富 pingzhongdata 兜底 (Script注入)
+function fetchOnePingzhong(code) {
+  return new Promise((resolve) => {
+    const sc = document.createElement('script');
+    const timer = setTimeout(() => { cleanup(); resolve(null); }, 12000);
+    function cleanup() {
+      if (sc.parentNode) sc.parentNode.removeChild(sc);
+      try { delete window.Data_netWorthTrend; } catch(e) {}
+      try { delete window.fS_name; } catch(e) {}
+    }
+    sc.onload = function() {
       clearTimeout(timer);
       try {
         const name = (typeof fS_name !== 'undefined') ? fS_name : '';
         const trend = (typeof Data_netWorthTrend !== 'undefined') ? Data_netWorthTrend : [];
-        if (!trend || trend.length === 0) { cleanup(); reject(new Error('no trend:' + code)); return; }
-
+        if (!trend || !trend.length) { cleanup(); resolve(null); return; }
         const latest = trend[trend.length - 1];
         const dwjz = parseFloat(latest.y) || 0;
-        const jzDate = new Date(latest.x);
-        const jzrq = jzDate.getFullYear() + '-' +
-          String(jzDate.getMonth() + 1).padStart(2, '0') + '-' +
-          String(jzDate.getDate()).padStart(2, '0');
-
+        const jd = new Date(latest.x);
+        const jzrq = jd.getFullYear() + '-' + String(jd.getMonth() + 1).padStart(2, '0') + '-' + String(jd.getDate()).padStart(2, '0');
         let gszzl = '0';
-        if (trend.length >= 2) {
-          const prevDwjz = parseFloat(trend[trend.length - 2].y) || 0;
-          if (prevDwjz > 0) gszzl = (((dwjz - prevDwjz) / prevDwjz) * 100).toFixed(2);
-        } else if (latest.equityReturn !== undefined) {
-          gszzl = parseFloat(latest.equityReturn).toFixed(2);
-        }
-
-        const result = {
-          fundcode: code, name, jzrq, dwjz,
-          gsz: dwjz, gszzl, gztime: jzrq + ' 00:00',
-        };
-
-        _fundDataCache[code] = { data: result, ts: Date.now() };
-        if (name) _nameCache[code] = name;
-        cleanup();
-        resolve(result);
-      } catch(e) { cleanup(); reject(e); }
+        if (trend.length >= 2 && parseFloat(trend[trend.length - 2].y) > 0)
+          gszzl = (((dwjz - parseFloat(trend[trend.length - 2].y)) / parseFloat(trend[trend.length - 2].y)) * 100).toFixed(2);
+        else if (latest.equityReturn !== undefined) gszzl = parseFloat(latest.equityReturn).toFixed(2);
+        resolve({ fundcode: code, name: name, jzrq: jzrq, dwjz: String(dwjz), gsz: String(dwjz), gszzl: gszzl, gztime: jzrq + ' 00:00' });
+      } catch(e) { resolve(null); }
+      cleanup();
     };
-
-    script.onerror = () => { clearTimeout(timer); cleanup(); reject(new Error('script error:' + code)); };
-    script.src = 'https://fund.eastmoney.com/pingzhongdata/' + code + '.js?_=' + Date.now();
-    document.head.appendChild(script);
+    sc.onerror = function() { clearTimeout(timer); cleanup(); resolve(null); };
+    sc.src = 'https://fund.eastmoney.com/pingzhongdata/' + code + '.js?_=' + Date.now();
+    document.head.appendChild(sc);
   });
-
-  _fundDataLoading[code] = promise;
-  promise.then(() => { delete _fundDataLoading[code]; },
-               () => { delete _fundDataLoading[code]; });
-  return promise;
 }
 
-/**
- * 获取基金名称（从缓存或 fetchFundData）
- */
-function fetchFundName(code) {
-  if (_nameCache[code]) return Promise.resolve(_nameCache[code]);
-  return fetchFundData(code).then(d => d.name || null).catch(() => null);
+// 主入口: 新浪实时优先 → 东方财富兜底
+function fetchOneJSONP(code) {
+  return fetchOneSina(code).then(function(r) {
+    if (r) return r;
+    console.log('[Fund] 新浪无数据 ' + code + ', 尝试东方财富兜底');
+    return fetchOnePingzhong(code);
+  });
 }
 
-/**
- * 获取基金净值数据（兼容旧 jsonpgz 格式）
- */
-function fetchFundNAV(code) {
-  return fetchFundData(code).catch(() => null);
+function fetchAllFunds() {
+  return Promise.allSettled(FUNDS.map(f => fetchOneJSONP(f.code)));
 }
 
 function unlockUI() {
@@ -761,11 +942,6 @@ function unlockUI() {
   if (btn) { btn.disabled = false; btn.textContent = '🔄 刷新数据'; }
   const loading = document.getElementById('loading');
   if (loading) loading.classList.add('hidden');
-}
-
-// 批量获取所有基金数据
-async function fetchAllFundData() {
-  return Promise.allSettled(FUNDS.map(f => fetchFundNAV(f.code)));
 }
 
 // ══════════════════════════════════════════
@@ -778,6 +954,7 @@ const IDX_CODES = [
   { code: 'usr_ixic', name: '纳斯达克' },
 ];
 
+// 腾讯 qt.gtimg.cn 允许跨域 fetch，直接解析
 async function fetchIndexJSONP() {
   const codes = IDX_CODES.map(i => i.code).join(',');
   const url   = 'https://qt.gtimg.cn/q=' + codes + '&r=' + Date.now();
@@ -791,6 +968,7 @@ async function fetchIndexJSONP() {
       if (!m) return;
       const parts = m[1].split('~');
       const price  = parseFloat(parts[3]);
+      const close  = parseFloat(parts[4]);
       const chgPct = parseFloat(parts[32]);
       const chgAmt = parseFloat(parts[31]);
       if (isNaN(price)) return;
@@ -824,7 +1002,6 @@ function renderIndexBar(chips) {
 }
 
 async function fetchAll() {
-  if (editMode) { resetCountdown(); return; }
   const btn = document.getElementById('refreshBtn');
   if (btn && btn.disabled) return;
   if (btn) { btn.disabled = true; btn.textContent = '⏳ 刷新中…'; }
@@ -837,8 +1014,8 @@ async function fetchAll() {
   try {
     [settled] = await Promise.all([
       Promise.race([
-        fetchAllFundData(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 10000))
+        fetchAllFunds(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 8000))
       ]),
       fetchIndexJSONP(),
     ]);
@@ -861,7 +1038,7 @@ async function fetchAll() {
 
   if (errEl) {
     errEl.style.display = failed.length > 0 ? 'block' : 'none';
-    if (failed.length > 0) errEl.textContent = '以下基金暂无数据（保留上次数据）：' + failed.join(', ');
+    if (failed.length > 0) errEl.textContent = '以下基金暂无数据（保留上次估值）：' + failed.join(', ');
   }
 
   render();
@@ -888,20 +1065,18 @@ function render() {
   FUNDS.forEach(f => {
     const d = fetched[f.code];
     if (!d) return;
+    const gsz  = parseFloat(d.gsz);
     const dwjz = parseFloat(d.dwjz);
-    if (isNaN(dwjz) || dwjz === 0) return;
+    if (isNaN(gsz) || isNaN(dwjz) || dwjz === 0) return;
     const shares   = f.cost / dwjz;
-    const curValue = shares * dwjz;
+    const curValue = shares * gsz;
     const profit   = curValue - f.cost;
-
-    // 涨跌幅：使用 API 返回的最新日涨跌幅
-    const pct = parseFloat(d.gszzl) || 0;
+    const pct      = (gsz - dwjz) / dwjz * 100;
     if (Math.abs(pct) > maxPct) maxPct = Math.abs(pct);
-
     totalCost   += f.cost;
     totalValue  += curValue;
     totalProfit += profit;
-    rows.push({...f, dwjz, shares, curValue, profit, pct, jzrq: d.jzrq});
+    rows.push({...f, gsz, dwjz, shares, curValue, profit, pct});
   });
 
   // ── 总览 ──
@@ -917,7 +1092,7 @@ function render() {
   setEl('totalProfit', totalCost > 0 ? (isUp?'+':'') + fmtY(totalProfit) : '—', color);
   setEl('totalPct',    totalCost > 0 ? (isUp?'+':'') + fmt(totalPct,2) + '%' : '—', color);
 
-  // ── 条形图（基于最新日涨跌）──
+  // ── 条形图 ──
   const barEl = document.getElementById('barChart');
   if (rows.length === 0) {
     barEl.innerHTML = '<div style="text-align:center;color:#484f58;font-size:.8rem;padding:12px">暂无数据</div>';
@@ -935,14 +1110,6 @@ function render() {
   }
 
   // ── 分组表格 ──
-  const GROUP_LABELS = {
-    "黄金 & 贵金属": "黄金 & 贵金属",
-    "稀土": "稀土产业",
-    "纳斯达克100": "纳斯达克100",
-    "电网设备": "电网设备",
-    "自选基金": "自选基金",
-  };
-
   const groups = {};
   rows.forEach(r => {
     const g = GROUP_LABELS[r.group] || r.group;
@@ -952,7 +1119,7 @@ function render() {
 
   const tableEl = document.getElementById('fundTable');
   if (rows.length === 0) {
-    tableEl.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#484f58;padding:24px">暂无数据，请点击「刷新数据」</td></tr>';
+    tableEl.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#484f58;padding:24px">暂无数据，请点击「刷新数据」</td></tr>';
     return;
   }
 
@@ -972,18 +1139,18 @@ function render() {
     const rows2 = items.map(r => {
       const pc = r.pct >= 0 ? '#ff4d4f' : '#3fb950';
       const sc = r.profit >= 0 ? '#ff4d4f' : '#3fb950';
-      const dateLabel = r.jzrq ? r.jzrq.slice(5) : '';
       return '<tr>' +
         '<td><span class="fc">' + r.code + '</span><br><small class="fname">' + r.name + '</small></td>' +
         buildCostCell(r) +
         '<td class="r num">' + fmt(r.shares,2) + '</td>' +
-        '<td class="r num bold">' + fmt(r.dwjz,4) + '<span class="data-date">' + dateLabel + '</span></td>' +
+        '<td class="r num">' + r.dwjz + '</td>' +
+        '<td class="r num bold" style="color:' + pc + '">' + r.gsz + '</td>' +
         '<td class="r bold" style="color:' + pc + '">' + (r.pct>=0?'+':'') + fmt(r.pct,2) + '%</td>' +
         '<td class="r bold" style="color:' + sc + '">' + (r.profit>=0?'+':'') + fmtY(r.profit) + '</td>' +
-        '<td class="r bold">' + fmtY(r.curValue) + '</td>' +
+        '<td class="r bold" style="color:' + pc + '">' + fmtY(r.curValue) + '</td>' +
       '</tr>';
     }).join('');
-    return '<tr class="group-header"><td colspan="7">' + gName + '</td></tr>' + rows2;
+    return '<tr class="group-header"><td colspan="8">' + gName + '</td></tr>' + rows2;
   }).join('');
 
   // ── 饼图 ──
@@ -1022,172 +1189,6 @@ function validateInput(input) {
   input.classList.toggle('invalid', isNaN(v) || v < 0);
 }
 
-// ══════════════════════════════════════════
-//  编辑成本模式
-// ══════════════════════════════════════════
-function toggleEditMode() {
-  editMode = !editMode;
-  const editBtn = document.getElementById('editBtn');
-  const saveBtn = document.getElementById('saveBtn');
-  const hint    = document.getElementById('countdown');
-
-  if (editMode) {
-    editBtn.textContent = '❌ 取消编辑';
-    editBtn.className   = 'btn btn-edit';
-    saveBtn.style.display = 'inline-block';
-    hint.innerHTML = '<em>编辑模式：直接修改成本后点「保存修改」</em>';
-    render();
-  } else {
-    editBtn.textContent = '✏️ 编辑成本';
-    editBtn.className   = 'btn btn-edit';
-    saveBtn.style.display = 'none';
-    hint.textContent   = '每5分钟自动刷新';
-    render();
-  }
-}
-
-async function saveCostEdits() {
-  let changed = false;
-
-  document.querySelectorAll('.cost-input').forEach(input => {
-    const code = input.dataset.code;
-    const val  = parseFloat(input.value);
-    if (!isNaN(val) && val >= 0) {
-      const fund = FUNDS.find(f => f.code === code);
-      if (fund && fund.cost !== val) {
-        fund.cost = val;
-        changed = true;
-      }
-      input.classList.remove('invalid');
-    } else {
-      input.classList.add('invalid');
-    }
-  });
-
-  if (changed) {
-    editMode = false;
-    document.getElementById('editBtn').textContent = '✏️ 编辑成本';
-    document.getElementById('saveBtn').style.display = 'none';
-    document.getElementById('countdown').textContent = '每5分钟自动刷新';
-    render();
-    await saveCloudData(true);
-  } else {
-    showToast('⚠️ 未检测到有效变化', true);
-  }
-}
-
-// ══════════════════════════════════════════
-//  Toast 提示
-// ══════════════════════════════════════════
-let toastTimer = null;
-function showToast(msg, isError=false) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.className = isError ? 'show error' : 'show';
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.className = ''; }, 3000);
-}
-
-// ══════════════════════════════════════════
-//  工具函数
-// ══════════════════════════════════════════
-function fmt(v, dec=2) { return Number(v).toFixed(dec); }
-function fmtY(v) { return '¥' + Number(v).toLocaleString('zh-CN',{minimumFractionDigits:2,maxFractionDigits:2}); }
-
-// ══════════════════════════════════════════
-//  添加/删除基金
-// ══════════════════════════════════════════
-async function addFund() {
-  const codeInput = document.getElementById('addCode');
-  const costInput = document.getElementById('addCost');
-  const hintEl    = document.getElementById('addHint');
-  const addBtn    = document.getElementById('addBtn');
-
-  const code = codeInput.value.trim();
-  const cost = parseFloat(costInput.value);
-
-  if (!/^\d{6}$/.test(code)) {
-    codeInput.classList.add('invalid');
-    hintEl.innerHTML = '<em>⚠️ 请输入正确的6位基金编码</em>';
-    return;
-  }
-  codeInput.classList.remove('invalid');
-
-  if (isNaN(cost) || cost < 0) {
-    costInput.classList.add('invalid');
-    hintEl.innerHTML = '<em>⚠️ 请输入正确的持仓成本（元）</em>';
-    return;
-  }
-  costInput.classList.remove('invalid');
-
-  if (FUNDS.find(f => f.code === code)) {
-    hintEl.innerHTML = '<em>⚠️ 基金 ' + code + ' 已在列表中</em>';
-    return;
-  }
-
-  addBtn.disabled = true;
-  addBtn.textContent = '⏳ 查询中…';
-  hintEl.innerHTML = '正在拉取基金 ' + code + ' 的信息…';
-
-  try {
-    // 获取基金名称
-    let name = await fetchFundName(code);
-    if (!name) {
-      hintEl.innerHTML = '<em>⚠️ 未找到基金 ' + code + '，请核对编码</em>';
-      addBtn.disabled = false; addBtn.textContent = '＋ 添加基金';
-      return;
-    }
-
-    // 获取最新净值
-    const navData = await fetchFundNAV(code);
-    const usedColors = new Set(FUNDS.map(f => f.color));
-    const color = COLOR_POOL.find(c => !usedColors.has(c)) || COLOR_POOL[FUNDS.length % COLOR_POOL.length];
-
-    const newFund = {
-      code:  code,
-      name:  name,
-      cost:  cost,
-      group: '自选基金',
-      color: color,
-    };
-
-    FUNDS.push(newFund);
-    if (navData) {
-      fetched[code] = navData;
-    }
-
-    hintEl.innerHTML = '<em>✅ 已添加：' + name + ' · 同步中…</em>';
-    codeInput.value = '';
-    costInput.value = '';
-    renderFundTags();
-    render();
-
-    await saveCloudData(false);
-    hintEl.innerHTML = '<em>✅ 已添加并同步：' + name + '</em>';
-    showToast('✅ 已添加 ' + name + '，云端同步完成');
-  } catch(e) {
-    hintEl.innerHTML = '<em>⚠️ 拉取失败，请检查网络后重试</em>';
-  }
-
-  addBtn.disabled = false;
-  addBtn.textContent = '＋ 添加基金';
-}
-
-async function deleteFund(code) {
-  const f = FUNDS.find(f => f.code === code);
-  if (!f) return;
-  if (!confirm('确认删除基金 ' + code + '（' + f.name + '）？\n此操作不影响持仓成本记录，可重新添加。')) return;
-
-  FUNDS = FUNDS.filter(f => f.code !== code);
-  delete fetched[code];
-
-  renderFundTags();
-  render();
-
-  await saveCloudData(false);
-  showToast('🗑️ 已删除 ' + f.name + '，云端同步完成');
-}
-
 function resetCountdown() {
   cd = 300;
   if (refreshTimer) clearInterval(refreshTimer);
@@ -1204,19 +1205,29 @@ function resetCountdown() {
   }, 1000);
 }
 
-// ── 初始化 ──
+// ── 初始化：先加载云端数据，再决定是否用预填值 ──
 async function init() {
-  // 清理旧版遗留数据
-  try { localStorage.removeItem('fund_cost_overrides'); } catch(e) {}
-
-  // 加载云端数据
+  // 1. 加载云端数据（覆盖 FUNDS 的 cost 字段）
   await loadCloudData();
 
-  // 首次获取数据
-  const cdEl = document.getElementById('countdown');
-  if (cdEl) cdEl.textContent = '05:00 后自动刷新';
-  fetchAll();
-  resetCountdown();
+  // 2. 检查是否有 Actions 预填的实时净值
+  function checkInitData() {
+    const f = FUNDS[0];
+    return f && f.gsz && f.gsz !== '{{' && f.dwjz && f.dwjz !== '{{';
+  }
+
+  if (checkInitData()) {
+    hasInitData = true;
+    FUNDS.forEach(f => { fetched[f.code] = { gsz: f.gsz, dwjz: f.dwjz }; });
+    render();
+    fetchIndexJSONP();
+    resetCountdown();
+  } else {
+    const cdEl = document.getElementById('countdown');
+    if (cdEl) cdEl.textContent = '05:00 后自动刷新';
+    fetchAll();
+    resetCountdown();
+  }
 }
 
 init();

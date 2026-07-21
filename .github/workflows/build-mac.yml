@@ -1,0 +1,33 @@
+name: Build Mac Binary
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      - name: Build binary
+        working-directory: mac-build
+        run: |
+          pyinstaller --onefile --name "fund-server" \
+            --distpath . \
+            --workpath .build-tmp \
+            fund-server.py
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: fund-server-mac
+          path: mac-build/fund-server

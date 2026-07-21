@@ -1,4 +1,4 @@
-name: Build Mac Binary
+name: Build Mac Binary v2
 
 on:
   workflow_dispatch:
@@ -19,15 +19,19 @@ jobs:
         run: pip install pyinstaller
 
       - name: Build binary
-        working-directory: mac-build
         run: |
           pyinstaller --onefile --name "fund-server" \
-            --distpath . \
+            --distpath dist \
             --workpath .build-tmp \
             fund-server.py
+
+      - name: Ad-hoc code sign (bypass Gatekeeper)
+        run: |
+          codesign --force --deep --sign - dist/fund-server
+          echo "Code signing complete"
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
-          name: fund-server-mac
-          path: mac-build/fund-server
+          name: fund-server-mac-v2
+          path: dist/fund-server

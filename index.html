@@ -663,86 +663,97 @@ function renderFundTags() {
 
 // 基金名称缓存（页面生命周期内有效）
 const _nameCache = {};
+const _fundDataCache = {};
+const _fundDataLoading = {};
 
 /**
- * 从 pingzhongdata JS 获取基金名称
+ * 通过注入 <script> 标签加载基金数据（绕过 CORS 限制）
+ * pingzhongdata JS 文件定义 Data_netWorthTrend 和 fS_name 全局变量
  */
-async function fetchFundName(code) {
-  if (_nameCache[code]) return _nameCache[code];
-
-  try {
-    const url = 'https://fund.eastmoney.com/pingzhongdata/' + code + '.js';
-    const res = await fetch(url, { headers: { 'Referer': 'https://fund.eastmoney.com/' } });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const text = await res.text();
-
-    // 解析 JS 中的 fS_name = "..."
-    const nameMatch = text.match(/fS_name\s*=\s*"([^"]+)"/);
-    if (nameMatch) {
-      const name = nameMatch[1];
-      _nameCache[code] = name;
-      return name;
-    }
-
-    // fallback: 尝试 fS_name = '...' 格式
-    const nameMatch2 = text.match(/fS_name\s*=\s*'([^']+)'/);
-    if (nameMatch2) {
-      _nameCache[code] = nameMatch2[1];
-      return nameMatch2[1];
-    }
-  } catch(e) {
-    // fall through to null
+function fetchFundData(code) {
+  // 缓存命中（5分钟内）
+  const cached = _fundDataCache[code];
+  if (cached && (Date.now() - cached.ts < 300000)) {
+    return Promise.resolve(cached.data);
   }
-  return null;
+  // 去重：相同请求复用
+  if (_fundDataLoading[code]) return _fundDataLoading[code];
+
+  const promise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    const timer = setTimeout(() => { cleanup(); reject(new Error('timeout:' + code)); }, 15000);
+
+    function cleanup() {
+      if (script.parentNode) script.parentNode.removeChild(script);
+      try { delete window.Data_netWorthTrend; } catch(e) {}
+      try { delete window.fS_name; } catch(e) {}
+      try { delete window.fS_code; } catch(e) {}
+      try { delete window.syl_1y; } catch(e) {}
+      try { delete window.syl_6y; } catch(e) {}
+      try { delete window.syl_3y; } catch(e) {}
+      try { delete window.syl_1n; } catch(e) {}
+      try { delete window.Data_ACWorthTrend; } catch(e) {}
+      try { delete window.Data_fluctuationScale; } catch(e) {}
+    }
+
+    script.onload = () => {
+      clearTimeout(timer);
+      try {
+        const name = (typeof fS_name !== 'undefined') ? fS_name : '';
+        const trend = (typeof Data_netWorthTrend !== 'undefined') ? Data_netWorthTrend : [];
+        if (!trend || trend.length === 0) { cleanup(); reject(new Error('no trend:' + code)); return; }
+
+        const latest = trend[trend.length - 1];
+        const dwjz = parseFloat(latest.y) || 0;
+        const jzDate = new Date(latest.x);
+        const jzrq = jzDate.getFullYear() + '-' +
+          String(jzDate.getMonth() + 1).padStart(2, '0') + '-' +
+          String(jzDate.getDate()).padStart(2, '0');
+
+        let gszzl = '0';
+        if (trend.length >= 2) {
+          const prevDwjz = parseFloat(trend[trend.length - 2].y) || 0;
+          if (prevDwjz > 0) gszzl = (((dwjz - prevDwjz) / prevDwjz) * 100).toFixed(2);
+        } else if (latest.equityReturn !== undefined) {
+          gszzl = parseFloat(latest.equityReturn).toFixed(2);
+        }
+
+        const result = {
+          fundcode: code, name, jzrq, dwjz,
+          gsz: dwjz, gszzl, gztime: jzrq + ' 00:00',
+        };
+
+        _fundDataCache[code] = { data: result, ts: Date.now() };
+        if (name) _nameCache[code] = name;
+        cleanup();
+        resolve(result);
+      } catch(e) { cleanup(); reject(e); }
+    };
+
+    script.onerror = () => { clearTimeout(timer); cleanup(); reject(new Error('script error:' + code)); };
+    script.src = 'https://fund.eastmoney.com/pingzhongdata/' + code + '.js?_=' + Date.now();
+    document.head.appendChild(script);
+  });
+
+  _fundDataLoading[code] = promise;
+  promise.then(() => { delete _fundDataLoading[code]; },
+               () => { delete _fundDataLoading[code]; });
+  return promise;
 }
 
 /**
- * 从 history NAV API 获取基金最新净值数据
- * 返回格式兼容旧 jsonpgz 数据结构：{fundcode, name, jzrq, dwjz, gsz(最新净值), gszzl(最新涨跌%), gztime}
+ * 获取基金名称（从缓存或 fetchFundData）
  */
-async function fetchFundNAV(code) {
-  try {
-    const url = 'https://api.fund.eastmoney.com/f10/lsjz?fundCode=' + code +
-                '&pageIndex=1&pageSize=2&_=' + Date.now();
-    const res = await fetch(url, {
-      headers: { 'Referer': 'https://fundf10.eastmoney.com/' }
-    });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
-    if (json.ErrCode !== 0 || !json.Data || !json.Data.LSJZList || json.Data.LSJZList.length === 0) {
-      throw new Error('no data');
-    }
+function fetchFundName(code) {
+  if (_nameCache[code]) return Promise.resolve(_nameCache[code]);
+  return fetchFundData(code).then(d => d.name || null).catch(() => null);
+}
 
-    const list = json.Data.LSJZList;
-    const latest = list[0];  // 最新一条记录
-    const dwjz   = parseFloat(latest.DWJZ);
-    const jzrq   = latest.FSRQ;  // 净值日期，如 "2026-07-20"
-
-    // 如果有前一条记录，计算最新涨跌幅
-    let gszzl = '0';
-    if (list.length >= 2) {
-      const prevDwjz = parseFloat(list[1].DWJZ);
-      if (prevDwjz > 0) {
-        gszzl = (((dwjz - prevDwjz) / prevDwjz) * 100).toFixed(2);
-      }
-    } else {
-      // 只有一条记录时使用 API 返回的 JZZZL
-      gszzl = latest.JZZZL || '0';
-    }
-
-    // 构造兼容旧格式的数据结构
-    return {
-      fundcode: code,
-      name:     '',  // 名称从 FUNDS 数组获取，这里留空
-      jzrq:     jzrq,
-      dwjz:     dwjz,       // 最新单位净值
-      gsz:      dwjz,       // 没有盘中估值，用最新净值代替
-      gszzl:    gszzl,      // 最新涨跌幅
-      gztime:   jzrq + ' 00:00',  // 数据日期
-    };
-  } catch(e) {
-    return null;
-  }
+/**
+ * 获取基金净值数据（兼容旧 jsonpgz 格式）
+ */
+function fetchFundNAV(code) {
+  return fetchFundData(code).catch(() => null);
 }
 
 function unlockUI() {
